@@ -40,11 +40,11 @@ AI clients that support Streamable HTTP can use `http://localhost:8690/mcp` when
 
 ## Tags
 
-| Tag       | Meaning                                                      |
-| --------- | ------------------------------------------------------------ |
-| `:dev`    | Latest development image (push to `dev` / workflow_dispatch) |
-| `:X.Y.Z`  | Release matching `Cargo.toml` / GitHub Release `vX.Y.Z`      |
-| `:latest` | Moves with each release                                      |
+| Tag       | Meaning                                                                      |
+| --------- | ---------------------------------------------------------------------------- |
+| `:dev`    | Tip of `dev` (CI push / workflow_dispatch); does **not** move `:latest`      |
+| `:X.Y.Z`  | Release matching `Cargo.toml` / GitHub Release `vX.Y.Z`                      |
+| `:latest` | Last GitHub Release only                                                     |
 
 ## Docs
 

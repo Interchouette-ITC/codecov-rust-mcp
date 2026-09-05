@@ -13,12 +13,12 @@ Secure runtime image for the MCP binary (Streamable HTTP by default).
 ## Build / push
 
 ```bash
-make docker-build          # :$(version) + :latest (Hub name)
-make docker-build-dev      # :dev + :latest (+ GHCR name tags)
+make docker-build          # :$(version) + :latest (Hub name; release)
+make docker-build-dev      # :dev only (+ GHCR :dev tags)
 make docker-push-dev-hub   # after login
 ```
 
-CI: `.github/workflows/docker-build-push-dev.yml` (push to `dev` touching docker/src/Cargo.\*, or `workflow_dispatch`). Release workflow pushes `:X.Y.Z` + `:latest`.
+CI: `.github/workflows/docker-build-push-dev.yml` pushes **`:dev` only** (not `:latest`). Release workflow pushes `:X.Y.Z` + `:latest`.
 
 Image is multi-stage → `gcr.io/distroless/cc-debian13:nonroot`. No shell as PID 1.
 
