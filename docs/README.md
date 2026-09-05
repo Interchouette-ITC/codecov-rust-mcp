@@ -2,6 +2,8 @@
 
 MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Exposes three read tools so agents can check coverage totals, list files with misses, and inspect a single file report.
 
+Canonical repo: [Interchouette-ITC/codecov-rust-mcp](https://github.com/Interchouette-ITC/codecov-rust-mcp).
+
 Service is fixed to GitHub (`github` in the Codecov API path).
 
 Licensed under the [Apache License 2.0](../LICENSE) (Copyright Interchouette 2026).
