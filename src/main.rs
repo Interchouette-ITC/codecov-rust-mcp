@@ -1,13 +1,13 @@
-//! `codecov-mcp` - Codecov MCP server over stdio.
+//! `codecov-rust-mcp` - Codecov MCP server over stdio.
 
 use anyhow::Result;
 use clap::Parser;
-use codecov_mcp::{load_dotenv, CodecovMcp};
+use codecov_rust_mcp::{load_dotenv, CodecovMcp};
 use rmcp::{transport::stdio, ServiceExt};
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "codecov-mcp",
+    name = "codecov-rust-mcp",
     about = "Codecov MCP server (stdio): coverage totals, miss files, file reports",
     version
 )]
@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
     load_dotenv();
     init_logging();
     let _cli = Cli::parse();
-    tracing::info!("codecov-mcp starting (stdio)");
+    tracing::info!("codecov-rust-mcp starting (stdio)");
     let server = CodecovMcp;
     let service = server
         .serve(stdio())

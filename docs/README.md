@@ -1,4 +1,4 @@
-# codecov-mcp
+# codecov-rust-mcp
 
 <p align="center">
   <a href="https://github.com/Interchouette-ITC/codecov-rust-mcp/actions/workflows/ci.yml"><img src="https://github.com/Interchouette-ITC/codecov-rust-mcp/actions/workflows/ci.yml/badge.svg?branch=dev" alt="CI" /></a>
@@ -36,14 +36,16 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 
 ```bash
 cargo +stable install --path . --force
-mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-mcp"
-cp .env.example "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-mcp/.env"
+mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-rust-mcp"
+cp .env.example "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-rust-mcp/.env"
 # edit that file: set CODECOV_TOKEN (Access token, not upload token)
 ```
 
-Point any MCP-capable agent or IDE at [`mcp.json.example`](../mcp.json.example): run `codecov-mcp` on `PATH`. Token stays in user config `.env` (or process env), not in the MCP host JSON.
+Point any MCP-capable agent or IDE at [`mcp.json.example`](../mcp.json.example): run `codecov-rust-mcp` on `PATH`. Token stays in user config `.env` (or process env), not in the MCP host JSON.
 
-Prebuilt Linux binary: [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) (`codecov-mcp-*-x86_64-unknown-linux-gnu`).
+Prebuilt Linux binary: [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) (`codecov-rust-mcp-*-x86_64-unknown-linux-gnu`).
+
+Docker image: [`interchouette/codecov-rust-mcp`](https://hub.docker.com/r/interchouette/codecov-rust-mcp) (stdio via `docker run --rm -i -e CODECOV_TOKEN …`). Hub Overview source: [`docker/DOCKERHUB.md`](../docker/DOCKERHUB.md).
 
 ## Thanks
 

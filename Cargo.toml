@@ -1,5 +1,5 @@
 [package]
-name = "codecov-mcp"
+name = "codecov-rust-mcp"
 version = "1.0.0"
 edition = "2021"
 rust-version = "1.85"
@@ -12,11 +12,11 @@ keywords = ["mcp", "codecov", "coverage"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "codecov-mcp"
+name = "codecov-rust-mcp"
 path = "src/main.rs"
 
 [lib]
-name = "codecov_mcp"
+name = "codecov_rust_mcp"
 path = "src/lib.rs"
 
 [dependencies]

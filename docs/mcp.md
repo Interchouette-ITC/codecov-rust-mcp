@@ -1,4 +1,4 @@
-# codecov-mcp
+# codecov-rust-mcp
 
 MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents use three read tools to inspect coverage totals, list files with misses, and fetch a single file report.
 
@@ -16,7 +16,7 @@ When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on 
 
 ## Auth
 
-Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
+Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
 
 | Requirement  | Detail                                                       |
 | ------------ | ------------------------------------------------------------ |
@@ -55,18 +55,19 @@ make ci
 
 ## Install
 
-| Path           | How                                                                                                                              |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| From source    | `cargo +stable install --path . --force`                                                                                         |
-| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-mcp-*-x86_64-unknown-linux-gnu` |
+| Path           | How                                                                                                                                    |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| From source    | `cargo +stable install --path . --force`                                                                                               |
+| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu` |
+| Docker         | `docker pull interchouette/codecov-rust-mcp:latest` then `docker run --rm -i -e CODECOV_TOKEN …` (see [`docker/README.md`](../docker/README.md)) |
 
 ## MCP clients
 
 Works with any host that speaks MCP stdio (agents, IDEs, CLIs). No vendor-specific checkout path in config.
 
 1. Install the binary on `PATH`: `cargo +stable install --path . --force`
-2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). Never commit tokens.
-3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-mcp"`. Adapt the JSON shape if your host uses a different key layout; the process is always stdio.
+2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). Never commit tokens.
+3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-rust-mcp"`. Adapt the JSON shape if your host uses a different key layout; the process is always stdio.
 
 ## Example
 

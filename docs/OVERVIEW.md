@@ -1,6 +1,6 @@
 # Overview
 
-**codecov-mcp** is a small Rust [MCP](https://modelcontextprotocol.io/) server
+**codecov-rust-mcp** is a small Rust [MCP](https://modelcontextprotocol.io/) server
 over **stdio**. It wraps the [Codecov](https://docs.codecov.com/) API v2 so
 agents and IDEs can read coverage without scraping HTML or parsing local
 `lcov` by hand.
@@ -20,10 +20,11 @@ Service is fixed to GitHub (`github` in the Codecov API path). Auth is a Codecov
 
 | Path | Role |
 | --- | --- |
-| `src/` | Library + `codecov-mcp` binary (rmcp tools, HTTP client) |
+| `src/` | Library + `codecov-rust-mcp` binary (rmcp tools, HTTP client) |
 | `docs/` | Hub, operator guide, contributing, security |
+| `docker/` | Distroless image + Hub Overview (`DOCKERHUB.md`) |
 | `examples/` | Manual smoke helpers |
-| `.github/workflows/` | CI, coverage upload, rustdoc Pages, release binaries |
+| `.github/workflows/` | CI, coverage upload, rustdoc Pages, release binaries + images |
 
 ## Where to go next
 

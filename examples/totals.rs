@@ -4,7 +4,7 @@
 //! Defaults: `Interchouette-ITC` `rustashop` `dev`.
 //! Requires `CODECOV_TOKEN`.
 
-use codecov_mcp::client::CodecovClient;
+use codecov_rust_mcp::client::CodecovClient;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {

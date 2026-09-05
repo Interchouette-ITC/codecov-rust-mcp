@@ -1,4 +1,4 @@
-# Contributing to codecov-mcp
+# Contributing to codecov-rust-mcp
 
 ## Code changes
 
@@ -21,7 +21,7 @@
 
 ## Auth for live API smoke
 
-Use a Codecov **Access** token in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). Never commit tokens. See [`mcp.md`](mcp.md).
+Use a Codecov **Access** token in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). Never commit tokens. See [`mcp.md`](mcp.md).
 
 ## Questions
 
