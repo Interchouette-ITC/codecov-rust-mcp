@@ -5,7 +5,6 @@
 .env.*
 !.env.example
 .codecov_token
-.github_credentials
 *.log
 /docs/api-rust/**
 !/docs/api-rust/README.md
