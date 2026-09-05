@@ -41,7 +41,8 @@ Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process c
 | `make release` | Release build                                    |
 | `make lint`    | `fmt --check` + clippy (pedantic / nursery deny) |
 | `make test`    | Unit + integration tests                         |
-| `make ci`      | `lint` + `test`                                  |
+| `make ci`      | `lint` + `test` + `doc`                          |
+| `make doc`     | rustdoc → `docs/api-rust/` (Pages deploy source) |
 | `make run`     | Build and run the stdio server                   |
 
 ```bash
@@ -50,11 +51,13 @@ make test
 make ci
 ```
 
-## Cursor
+## MCP clients
 
-1. Install the binary on your PATH (from a checkout): `cargo +stable install --path . --force`
+Works with any host that speaks MCP stdio (agents, IDEs, CLIs). No vendor-specific checkout path in config.
+
+1. Install the binary on `PATH`: `cargo +stable install --path . --force`
 2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). Never commit tokens.
-3. Wire Cursor with [`mcp.json.example`](../mcp.json.example) (launcher under `${userHome}/.cursor/scripts/`, no checkout path in `mcp.json`).
+3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-mcp"`. Adapt the JSON shape if your host uses a different key layout; the process is always stdio.
 
 ## Example
 
@@ -66,6 +69,10 @@ cargo +stable run --example totals -- OWNER REPO BRANCH
 ```
 
 Pass your GitHub `OWNER`, `REPO`, and `BRANCH`. See `examples/totals.rs` for the binary's built-in defaults when args are omitted.
+
+## Thanks
+
+Thanks to [GitHub](https://github.com/) for hosting and Actions, and to [Codecov](https://about.codecov.io/) for coverage reports and the [API](https://docs.codecov.com/) this server wraps.
 
 ## See also
 

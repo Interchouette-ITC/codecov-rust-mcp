@@ -128,6 +128,7 @@ mod tests {
                 file("b.rs", 5),
                 file("c.rs", 12),
                 file("d.rs", 3),
+                file("e.rs", 5),
             ],
             commit_file_url: None,
         };
@@ -137,8 +138,21 @@ mod tests {
         assert_eq!(result.files.len(), 2);
         assert_eq!(result.files[0].name, "c.rs");
         assert_eq!(result.files[0].misses, 12);
+        assert_eq!(result.files[0].coverage, Some(json!(90.0)));
         assert_eq!(result.files[1].name, "b.rs");
         assert_eq!(result.files[1].misses, 5);
+
+        // Equal misses: name tie-break (`then_with`), then Debug on the result.
+        let tied = miss_files_from_report(&report, 0);
+        assert_eq!(tied.iter().filter(|f| f.misses == 5).count(), 2);
+        let names: Vec<&str> = tied
+            .iter()
+            .filter(|f| f.misses == 5)
+            .map(|f| f.name.as_str())
+            .collect();
+        assert_eq!(names, ["b.rs", "e.rs"]);
+        let debug = format!("{result:?}");
+        assert!(debug.contains("returned"));
     }
 
     #[test]
