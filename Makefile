@@ -19,8 +19,8 @@ GHCR_ORG_IMAGE := ghcr.io/interchouette-itc/codecov-rust-mcp
 help:
 	@echo "Targets: build release lint test coverage audit deny doc doc-open doc-clean ci run"
 	@echo "  make docker-build      Build $(HUB_IMAGE):$(APP_VERSION) + :latest"
-	@echo "  make docker-build-dev  Tag :dev + :latest (Hub + GHCR names)"
-	@echo "  make docker-run        Interactive stdio (needs CODECOV_TOKEN)"
+	@echo "  make docker-build-dev  Tag :dev only (Hub + GHCR names)"
+	@echo "  make docker-run        HTTP on :8690 from :dev (needs CODECOV_TOKEN)"
 
 build:
 	$(CARGO) build
@@ -105,31 +105,23 @@ docker-build:
 docker-build-dev:
 	docker build --build-arg APP_VERSION=$(APP_VERSION) \
 		-f $(DOCKERFILE) -t $(HUB_IMAGE):dev .
-	docker tag $(HUB_IMAGE):dev $(HUB_IMAGE):latest
 	docker tag $(HUB_IMAGE):dev $(GHCR_PERSONAL_IMAGE):dev
-	docker tag $(HUB_IMAGE):dev $(GHCR_PERSONAL_IMAGE):latest
 	docker tag $(HUB_IMAGE):dev $(GHCR_WORKER_IMAGE):dev
-	docker tag $(HUB_IMAGE):dev $(GHCR_WORKER_IMAGE):latest
 	docker tag $(HUB_IMAGE):dev $(GHCR_ORG_IMAGE):dev
-	docker tag $(HUB_IMAGE):dev $(GHCR_ORG_IMAGE):latest
 
 docker-run: docker-build-dev
 	@test -n "$$CODECOV_TOKEN" || (echo "Set CODECOV_TOKEN in the environment"; exit 1)
-	docker run --rm -p 8690:8690 -e CODECOV_TOKEN $(HUB_IMAGE):latest
+	docker run --rm -p 8690:8690 -e CODECOV_TOKEN $(HUB_IMAGE):dev
 
 docker-push-dev-hub:
 	docker push $(HUB_IMAGE):dev
-	docker push $(HUB_IMAGE):latest
 
 docker-push-dev-ghcr-personal:
 	docker push $(GHCR_PERSONAL_IMAGE):dev
-	docker push $(GHCR_PERSONAL_IMAGE):latest
 
 docker-push-dev-ghcr-itc:
 	docker push $(GHCR_WORKER_IMAGE):dev
-	docker push $(GHCR_WORKER_IMAGE):latest
 	docker push $(GHCR_ORG_IMAGE):dev
-	docker push $(GHCR_ORG_IMAGE):latest
 
 docker-push-release-hub:
 	docker push $(HUB_IMAGE):$(APP_VERSION)
