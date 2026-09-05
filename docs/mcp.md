@@ -16,7 +16,7 @@ When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on 
 
 ## Auth
 
-Authentication is **bearer token only**. Put the token in a gitignored `.env` at the repo root (see [`.env.example`](../.env.example)). The binary loads it via `dotenvy` (existing process env wins over `.env`).
+Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
 
 | Requirement  | Detail                                                       |
 | ------------ | ------------------------------------------------------------ |
@@ -52,9 +52,9 @@ make ci
 
 ## Cursor
 
-1. Copy [`.env.example`](../.env.example) to `.env` and set `CODECOV_TOKEN` (never commit `.env`).
-2. `make release`
-3. Copy or adapt [`mcp.json.example`](../mcp.json.example) - it only points at the release binary; no token in `mcp.json`.
+1. Install the binary on your PATH (from a checkout): `cargo +stable install --path . --force`
+2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). Never commit tokens.
+3. Wire Cursor with [`mcp.json.example`](../mcp.json.example) (launcher under `${userHome}/.cursor/scripts/`, no checkout path in `mcp.json`).
 
 ## Example
 

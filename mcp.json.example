@@ -1,7 +1,8 @@
 {
   "mcpServers": {
     "codecov": {
-      "command": "${workspaceFolder}/target/release/codecov-mcp"
+      "command": "bash",
+      "args": ["${userHome}/.cursor/scripts/codecov-mcp.sh"]
     }
   }
 }

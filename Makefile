@@ -3,10 +3,10 @@
 CLIPPY_FLAGS := -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
 CARGO ?= cargo +stable
 
-.PHONY: build release lint test ci run help
+.PHONY: build release lint test coverage doc ci run help
 
 help:
-	@echo "Targets: build release lint test ci run"
+	@echo "Targets: build release lint test coverage doc ci run"
 
 build:
 	$(CARGO) build
@@ -21,7 +21,17 @@ lint:
 test:
 	$(CARGO) test --all-targets
 
-ci: lint test
+## Requires cargo-llvm-cov + llvm-tools-preview. Writes coverage/lcov.info.
+coverage:
+	mkdir -p coverage
+	RUSTUP_TOOLCHAIN=stable $(CARGO) llvm-cov --lcov \
+		--ignore-filename-regex 'examples/|src/main\.rs' \
+		--output-path coverage/lcov.info
+
+doc:
+	RUSTDOCFLAGS="-D warnings" $(CARGO) doc --no-deps
+
+ci: lint test doc
 
 run: build
 	$(CARGO) run --quiet
