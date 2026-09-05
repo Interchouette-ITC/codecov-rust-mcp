@@ -63,3 +63,15 @@ jobs:
           flags: rust
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  supply-chain:
+    name: supply-chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny --version 0.20.2
+      - name: Cargo deny
+        run: make deny

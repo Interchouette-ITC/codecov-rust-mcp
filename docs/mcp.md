@@ -42,6 +42,7 @@ Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process c
 | `make lint`    | `fmt --check` + clippy (pedantic / nursery deny) |
 | `make test`    | Unit + integration tests                         |
 | `make ci`      | `lint` + `test` + `doc`                          |
+| `make deny`    | `cargo deny check`                               |
 | `make doc`     | rustdoc → `docs/api-rust/` (Pages deploy source) |
 | `make run`     | Build and run the stdio server                   |
 
@@ -84,4 +85,9 @@ Thanks to [GitHub](https://github.com/) for hosting and Actions, and to [Codecov
 ## See also
 
 - Docs index: [`README.md`](README.md)
-- License: [`LICENSE`](../LICENSE) (Apache-2.0, Copyright Interchouette 2026)
+- Overview: [`OVERVIEW.md`](OVERVIEW.md)
+- Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+## License
+
+**Apache-2.0** (Apache License, Version 2.0). See [`LICENSE`](../LICENSE).
