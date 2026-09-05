@@ -6,11 +6,11 @@ use std::thread;
 use std::time::Duration;
 
 fn mcp_bin() -> String {
-    if let Some(p) = option_env!("CARGO_BIN_EXE_codecov-mcp") {
+    if let Some(p) = option_env!("CARGO_BIN_EXE_codecov-rust-mcp") {
         return p.to_string();
     }
-    let release = env!("CARGO_MANIFEST_DIR").to_string() + "/target/release/codecov-mcp";
-    let debug = env!("CARGO_MANIFEST_DIR").to_string() + "/target/debug/codecov-mcp";
+    let release = env!("CARGO_MANIFEST_DIR").to_string() + "/target/release/codecov-rust-mcp";
+    let debug = env!("CARGO_MANIFEST_DIR").to_string() + "/target/debug/codecov-rust-mcp";
     if std::path::Path::new(&release).is_file() {
         release
     } else {

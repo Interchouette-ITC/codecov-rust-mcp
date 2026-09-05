@@ -167,8 +167,10 @@ impl CodecovClient {
         sha: Option<&str>,
     ) -> String {
         let base = trim_trailing_slash(api_base.to_string());
+        // No trailing slash after the file path: Codecov treats `parser.rs/` as a
+        // different key and returns 404 for line coverage.
         let mut url = format!(
-            "{base}/github/{}/repos/{}/file_report/{}/",
+            "{base}/github/{}/repos/{}/file_report/{}",
             enc(owner),
             enc(repo),
             enc(path)
@@ -427,7 +429,7 @@ mod tests {
     }
 
     #[test]
-    fn file_report_url_encodes_path() {
+    fn file_report_url_encodes_path_without_trailing_slash() {
         let url = CodecovClient::file_report_url(
             DEFAULT_API_URL,
             "o",
@@ -436,9 +438,14 @@ mod tests {
             Some("dev"),
             None,
         );
-        assert!(url.contains("/file_report/"));
-        assert!(url.contains("crates%2Ffoo%2Fsrc%2Flib.rs"));
-        assert!(url.ends_with("?branch=dev"));
+        assert_eq!(
+            url,
+            "https://api.codecov.io/api/v2/github/o/repos/r/file_report/crates%2Ffoo%2Fsrc%2Flib.rs?branch=dev"
+        );
+        assert!(
+            !url.contains("lib.rs/"),
+            "trailing slash after path breaks Codecov file_report lookups: {url}"
+        );
     }
 
     #[test]

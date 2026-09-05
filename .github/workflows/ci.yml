@@ -63,3 +63,17 @@ jobs:
           flags: rust
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+  supply-chain:
+    name: supply-chain
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install cargo-audit and cargo-deny
+        run: |
+          cargo install --locked cargo-audit --version 0.22.0
+          cargo install --locked cargo-deny --version 0.20.2
+      - name: Cargo audit and deny
+        run: make audit && make deny

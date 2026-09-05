@@ -1,4 +1,4 @@
-# codecov-mcp
+# codecov-rust-mcp
 
 MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents use three read tools to inspect coverage totals, list files with misses, and fetch a single file report.
 
@@ -16,7 +16,7 @@ When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on 
 
 ## Auth
 
-Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
+Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
 
 | Requirement  | Detail                                                       |
 | ------------ | ------------------------------------------------------------ |
@@ -42,6 +42,8 @@ Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process c
 | `make lint`    | `fmt --check` + clippy (pedantic / nursery deny) |
 | `make test`    | Unit + integration tests                         |
 | `make ci`      | `lint` + `test` + `doc`                          |
+| `make deny`    | `cargo deny check`                               |
+| `make audit`   | `cargo audit`                                    |
 | `make doc`     | rustdoc → `docs/api-rust/` (Pages deploy source) |
 | `make run`     | Build and run the stdio server                   |
 
@@ -53,18 +55,30 @@ make ci
 
 ## Install
 
-| Path | How |
-| --- | --- |
-| From source | `cargo +stable install --path . --force` |
-| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-mcp-*-x86_64-unknown-linux-gnu` |
+| Path           | How                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| From source    | `cargo +stable install --path . --force`                                                                                                                           |
+| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu`                              |
+| Docker         | `docker pull interchouette/codecov-rust-mcp:latest` then `docker run -p 8690:8690 -e CODECOV_TOKEN …` (HTTP `/mcp`; see [`docker/README.md`](../docker/README.md)) |
 
 ## MCP clients
 
-Works with any host that speaks MCP stdio (agents, IDEs, CLIs). No vendor-specific checkout path in config.
+Works with any host that speaks MCP **stdio** or **Streamable HTTP** (agents, IDEs, CLIs).
+
+### stdio (default)
 
 1. Install the binary on `PATH`: `cargo +stable install --path . --force`
-2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-mcp/.env` (or a checkout `.env`). Never commit tokens.
-3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-mcp"`. Adapt the JSON shape if your host uses a different key layout; the process is always stdio.
+2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). Never commit tokens.
+3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-rust-mcp"`.
+
+### Streamable HTTP
+
+```bash
+codecov-rust-mcp --http --listen 0.0.0.0:8690
+# or: MCP_HTTP=true CODECOV_MCP_ADDR=0.0.0.0:8690 codecov-rust-mcp
+```
+
+Endpoint: `http://<host>:8690/mcp`. Docker image defaults to this mode (port **8690**). See [`docker/README.md`](../docker/README.md).
 
 ## Example
 
@@ -84,4 +98,9 @@ Thanks to [GitHub](https://github.com/) for hosting and Actions, and to [Codecov
 ## See also
 
 - Docs index: [`README.md`](README.md)
-- License: [`LICENSE`](../LICENSE) (Apache-2.0, Copyright Interchouette 2026)
+- Overview: [`OVERVIEW.md`](OVERVIEW.md)
+- Contributing: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+
+## License
+
+**Apache-2.0** (Apache License, Version 2.0). See [`LICENSE`](../LICENSE).

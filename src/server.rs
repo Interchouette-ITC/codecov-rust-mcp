@@ -1,6 +1,8 @@
-//! MCP server (`rmcp`) for Codecov over stdio.
+//! MCP server (`rmcp`) for Codecov (stdio or Streamable HTTP).
 
 #![allow(clippy::unused_async)]
+
+use std::sync::Arc;
 
 use rmcp::{
     handler::server::wrapper::Parameters,
@@ -10,6 +12,9 @@ use rmcp::{
 
 use crate::client::CodecovClient;
 use crate::tool_args::{FileReportArgs, MissFilesArgs, RepoArgs};
+
+/// Default Streamable HTTP bind address.
+pub const DEFAULT_HTTP_LISTEN: &str = "127.0.0.1:8690";
 
 /// MCP server handle exposing Codecov coverage tools.
 #[derive(Clone, Default)]
@@ -150,6 +155,44 @@ impl ServerHandler for CodecovMcp {
                 "Codecov coverage tools: codecov_totals, codecov_miss_files, codecov_file_report. Requires CODECOV_TOKEN; optional CODECOV_API_URL.",
             )
     }
+}
+
+fn http_router() -> axum::Router {
+    let config =
+        rmcp::transport::streamable_http_server::tower::StreamableHttpServerConfig::default();
+    let service = rmcp::transport::streamable_http_server::tower::StreamableHttpService::new(
+        || Ok(CodecovMcp),
+        Arc::new(
+            rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default(),
+        ),
+        config,
+    );
+    let method_router = axum::routing::any_service(service);
+    axum::Router::new()
+        .route("/mcp", method_router.clone())
+        .route("/mcp/", method_router)
+}
+
+async fn serve_listener(
+    listener: tokio::net::TcpListener,
+    shutdown: impl std::future::Future<Output = ()> + Send + 'static,
+) -> std::io::Result<()> {
+    let addr = listener.local_addr()?;
+    tracing::info!(%addr, "codecov-rust-mcp HTTP listening");
+    axum::serve(listener, http_router())
+        .with_graceful_shutdown(shutdown)
+        .await?;
+    Ok(())
+}
+
+/// Serves MCP over Streamable HTTP until the process is stopped.
+///
+/// # Errors
+///
+/// Returns I/O errors from binding or serving.
+pub async fn run_http(addr: &str) -> std::io::Result<()> {
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    serve_listener(listener, std::future::pending()).await
 }
 
 #[cfg(test)]
@@ -487,5 +530,102 @@ mod tests {
 
         restore_env("CODECOV_TOKEN", prev_token);
         restore_env("CODECOV_API_URL", prev_url);
+    }
+
+    #[tokio::test]
+    async fn run_http_bind_failure_when_port_in_use() {
+        let held = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("hold port");
+        let addr = held.local_addr().expect("addr").to_string();
+        let err = run_http(&addr).await;
+        assert!(err.is_err(), "expected bind failure on busy port");
+    }
+
+    #[tokio::test]
+    async fn run_http_pending_path_accepts_then_aborts() {
+        let probe = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("probe");
+        let addr = probe.local_addr().expect("addr");
+        drop(probe);
+
+        let handle = tokio::spawn(async move { run_http(&addr.to_string()).await });
+
+        for _ in 0..50 {
+            match tokio::net::TcpStream::connect(addr).await {
+                Ok(_) => break,
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+            }
+        }
+
+        let slash = reqwest::Client::new()
+            .post(format!("http://{addr}/mcp/"))
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .body("{}")
+            .send()
+            .await
+            .expect("slash post");
+        assert_ne!(slash.status().as_u16(), 404);
+
+        handle.abort();
+        let _ = handle.await;
+    }
+
+    #[tokio::test]
+    async fn run_http_serves_mcp_and_shuts_down() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind");
+        let addr = listener.local_addr().expect("addr");
+        let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+
+        let server = tokio::spawn(async move {
+            // Delay so the readiness loop exercises the retry sleep branch.
+            tokio::time::sleep(std::time::Duration::from_millis(40)).await;
+            serve_listener(listener, async {
+                let _ = shutdown_rx.await;
+            })
+            .await
+        });
+
+        for _ in 0..50 {
+            match tokio::net::TcpStream::connect(addr).await {
+                Ok(_) => break,
+                Err(_) => {
+                    tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+                }
+            }
+        }
+
+        let init = json!({
+            "jsonrpc": "2.0",
+            "id": 1,
+            "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": { "name": "coverage-test", "version": "0.0.1" }
+            }
+        });
+        let response = reqwest::Client::new()
+            .post(format!("http://{addr}/mcp"))
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .json(&init)
+            .send()
+            .await
+            .expect("mcp post");
+        let status = response.status();
+        assert!(status.is_success() || status.as_u16() == 406);
+
+        let _ = shutdown_tx.send(());
+        server
+            .await
+            .expect("join")
+            .expect("serve_listener should shut down cleanly");
     }
 }

@@ -1,13 +1,26 @@
-# codecov-mcp - local gates (match CI)
+# codecov-rust-mcp - local gates (match CI)
 
 CLIPPY_FLAGS := -D warnings -D clippy::all -D clippy::pedantic -D clippy::nursery
 CARGO ?= cargo +stable
 DOC_OUT ?= target/doc
 
-.PHONY: build release lint test coverage doc doc-open doc-clean ci run help
+APP_VERSION ?= $(shell awk '/^version = /{gsub(/"/,"",$$3); print $$3; exit}' Cargo.toml)
+DOCKERFILE := docker/Dockerfile
+HUB_IMAGE := interchouette/codecov-rust-mcp
+GHCR_PERSONAL_IMAGE := ghcr.io/groussac/codecov-rust-mcp
+GHCR_WORKER_IMAGE := ghcr.io/interchouette/codecov-rust-mcp
+GHCR_ORG_IMAGE := ghcr.io/interchouette-itc/codecov-rust-mcp
+
+.PHONY: build release lint test coverage audit deny doc doc-open doc-clean ci run help \
+	docker-build docker-build-dev docker-run \
+	docker-push-dev-hub docker-push-dev-ghcr-personal docker-push-dev-ghcr-itc \
+	docker-push-release-hub docker-push-release-ghcr-personal docker-push-release-ghcr-itc
 
 help:
-	@echo "Targets: build release lint test coverage doc doc-open doc-clean ci run"
+	@echo "Targets: build release lint test coverage audit deny doc doc-open doc-clean ci run"
+	@echo "  make docker-build      Build $(HUB_IMAGE):$(APP_VERSION) + :latest"
+	@echo "  make docker-build-dev  Tag :dev + :latest (Hub + GHCR names)"
+	@echo "  make docker-run        Interactive stdio (needs CODECOV_TOKEN)"
 
 build:
 	$(CARGO) build
@@ -29,6 +42,14 @@ coverage:
 		--ignore-filename-regex 'examples/|src/main\.rs|src/test_env\.rs' \
 		--output-path coverage/lcov.info
 
+## Requires `cargo install cargo-audit`.
+audit:
+	$(CARGO) audit
+
+## Requires `cargo install cargo-deny`.
+deny:
+	$(CARGO) deny check
+
 ## rustdoc → `docs/api-rust/` (GitHub Pages deploy source).
 doc:
 	RUSTDOCFLAGS='-D warnings' $(CARGO) doc --no-deps
@@ -41,19 +62,19 @@ doc:
 		'<html lang="en">' \
 		'<head>' \
 		'<meta charset="utf-8">' \
-		'<meta http-equiv="refresh" content="0; url=codecov_mcp/index.html">' \
-		'<title>codecov-mcp — Rust API docs</title>' \
-		'<link rel="canonical" href="codecov_mcp/index.html">' \
-		'<script>location.replace("codecov_mcp/index.html");</script>' \
+		'<meta http-equiv="refresh" content="0; url=codecov_rust_mcp/index.html">' \
+		'<title>codecov-rust-mcp — Rust API docs</title>' \
+		'<link rel="canonical" href="codecov_rust_mcp/index.html">' \
+		'<script>location.replace("codecov_rust_mcp/index.html");</script>' \
 		'</head>' \
-		'<body><p><a href="codecov_mcp/index.html">codecov-mcp API documentation</a></p></body>' \
+		'<body><p><a href="codecov_rust_mcp/index.html">codecov-rust-mcp API documentation</a></p></body>' \
 		'</html>' \
 		> docs/api-rust/index.html
 	@touch docs/api-rust/.nojekyll
 	@printf '%s\n' \
 		'# Rust API documentation (rustdoc)' \
 		'' \
-		'Open [`codecov_mcp/index.html`](codecov_mcp/index.html) (root [`index.html`](index.html) redirects there).' \
+		'Open [`codecov_rust_mcp/index.html`](codecov_rust_mcp/index.html) (root [`index.html`](index.html) redirects there).' \
 		> docs/api-rust/README.md
 	@echo "docs/api-rust/ updated - open docs/api-rust/index.html"
 
@@ -75,3 +96,57 @@ ci: lint test doc
 
 run: build
 	$(CARGO) run --quiet
+
+docker-build:
+	docker build --build-arg APP_VERSION=$(APP_VERSION) \
+		-f $(DOCKERFILE) -t $(HUB_IMAGE):$(APP_VERSION) .
+	docker tag $(HUB_IMAGE):$(APP_VERSION) $(HUB_IMAGE):latest
+
+docker-build-dev:
+	docker build --build-arg APP_VERSION=$(APP_VERSION) \
+		-f $(DOCKERFILE) -t $(HUB_IMAGE):dev .
+	docker tag $(HUB_IMAGE):dev $(HUB_IMAGE):latest
+	docker tag $(HUB_IMAGE):dev $(GHCR_PERSONAL_IMAGE):dev
+	docker tag $(HUB_IMAGE):dev $(GHCR_PERSONAL_IMAGE):latest
+	docker tag $(HUB_IMAGE):dev $(GHCR_WORKER_IMAGE):dev
+	docker tag $(HUB_IMAGE):dev $(GHCR_WORKER_IMAGE):latest
+	docker tag $(HUB_IMAGE):dev $(GHCR_ORG_IMAGE):dev
+	docker tag $(HUB_IMAGE):dev $(GHCR_ORG_IMAGE):latest
+
+docker-run: docker-build-dev
+	@test -n "$$CODECOV_TOKEN" || (echo "Set CODECOV_TOKEN in the environment"; exit 1)
+	docker run --rm -p 8690:8690 -e CODECOV_TOKEN $(HUB_IMAGE):latest
+
+docker-push-dev-hub:
+	docker push $(HUB_IMAGE):dev
+	docker push $(HUB_IMAGE):latest
+
+docker-push-dev-ghcr-personal:
+	docker push $(GHCR_PERSONAL_IMAGE):dev
+	docker push $(GHCR_PERSONAL_IMAGE):latest
+
+docker-push-dev-ghcr-itc:
+	docker push $(GHCR_WORKER_IMAGE):dev
+	docker push $(GHCR_WORKER_IMAGE):latest
+	docker push $(GHCR_ORG_IMAGE):dev
+	docker push $(GHCR_ORG_IMAGE):latest
+
+docker-push-release-hub:
+	docker push $(HUB_IMAGE):$(APP_VERSION)
+	docker push $(HUB_IMAGE):latest
+
+docker-push-release-ghcr-personal:
+	docker tag $(HUB_IMAGE):$(APP_VERSION) $(GHCR_PERSONAL_IMAGE):$(APP_VERSION)
+	docker tag $(HUB_IMAGE):latest $(GHCR_PERSONAL_IMAGE):latest
+	docker push $(GHCR_PERSONAL_IMAGE):$(APP_VERSION)
+	docker push $(GHCR_PERSONAL_IMAGE):latest
+
+docker-push-release-ghcr-itc:
+	docker tag $(HUB_IMAGE):$(APP_VERSION) $(GHCR_WORKER_IMAGE):$(APP_VERSION)
+	docker tag $(HUB_IMAGE):latest $(GHCR_WORKER_IMAGE):latest
+	docker tag $(HUB_IMAGE):$(APP_VERSION) $(GHCR_ORG_IMAGE):$(APP_VERSION)
+	docker tag $(HUB_IMAGE):latest $(GHCR_ORG_IMAGE):latest
+	docker push $(GHCR_WORKER_IMAGE):$(APP_VERSION)
+	docker push $(GHCR_WORKER_IMAGE):latest
+	docker push $(GHCR_ORG_IMAGE):$(APP_VERSION)
+	docker push $(GHCR_ORG_IMAGE):latest

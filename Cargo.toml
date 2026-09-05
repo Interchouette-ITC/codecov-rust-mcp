@@ -1,10 +1,10 @@
 [package]
-name = "codecov-mcp"
+name = "codecov-rust-mcp"
 version = "1.0.0"
 edition = "2021"
 rust-version = "1.85"
 license = "Apache-2.0"
-description = "MCP server for the Codecov API (stdio): coverage totals, miss files, file reports"
+description = "MCP server for the Codecov API (stdio or Streamable HTTP): coverage totals, miss files, file reports"
 readme = "docs/README.md"
 authors = ["Interchouette <contact@interchouette.net>"]
 repository = "https://github.com/Interchouette-ITC/codecov-rust-mcp"
@@ -12,11 +12,11 @@ keywords = ["mcp", "codecov", "coverage"]
 categories = ["command-line-utilities", "development-tools"]
 
 [[bin]]
-name = "codecov-mcp"
+name = "codecov-rust-mcp"
 path = "src/main.rs"
 
 [lib]
-name = "codecov_mcp"
+name = "codecov_rust_mcp"
 path = "src/lib.rs"
 
 [dependencies]
@@ -32,6 +32,11 @@ rmcp = { version = "3.1.2", default-features = false, features = [
     "server",
     "macros",
     "transport-io",
+    "transport-streamable-http-server",
+] }
+axum = { version = "0.8", default-features = false, features = [
+    "http1",
+    "tokio",
 ] }
 schemars = "1"
 serde = { version = "1", features = ["derive"] }
@@ -41,6 +46,8 @@ tokio = { version = "1", features = [
     "rt-multi-thread",
     "time",
     "io-util",
+    "net",
+    "sync",
 ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
