@@ -1,0 +1,56 @@
+[package]
+name = "codecov-mcp"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.85"
+license = "Apache-2.0"
+description = "MCP server for the Codecov API (stdio): coverage totals, miss files, file reports"
+readme = "docs/README.md"
+authors = ["Interchouette <contact@interchouette.net>"]
+repository = "https://github.com/Interchouette-ITC/codecov-rust-mcp"
+keywords = ["mcp", "codecov", "coverage"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "codecov-mcp"
+path = "src/main.rs"
+
+[lib]
+name = "codecov_mcp"
+path = "src/lib.rs"
+
+[dependencies]
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+dotenvy = { version = "0.15", default-features = false }
+percent-encoding = "2"
+reqwest = { version = "0.13", default-features = false, features = [
+    "json",
+    "rustls",
+] }
+rmcp = { version = "3.1.2", default-features = false, features = [
+    "server",
+    "macros",
+    "transport-io",
+] }
+schemars = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = [
+    "macros",
+    "rt-multi-thread",
+    "time",
+    "io-util",
+] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[dev-dependencies]
+serde_json = "1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = "symbols"
+opt-level = "s"

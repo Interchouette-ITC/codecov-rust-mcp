@@ -1,0 +1,7 @@
+{
+  "mcpServers": {
+    "codecov": {
+      "command": "${workspaceFolder}/target/release/codecov-mcp"
+    }
+  }
+}

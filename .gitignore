@@ -1,0 +1,8 @@
+/target
+/.run
+.env
+.env.*
+!.env.example
+.codecov_token
+.github_credentials
+*.log
