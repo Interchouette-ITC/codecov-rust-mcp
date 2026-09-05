@@ -43,6 +43,7 @@ Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process c
 | `make test`    | Unit + integration tests                         |
 | `make ci`      | `lint` + `test` + `doc`                          |
 | `make deny`    | `cargo deny check`                               |
+| `make audit`   | `cargo audit`                                    |
 | `make doc`     | rustdoc → `docs/api-rust/` (Pages deploy source) |
 | `make run`     | Build and run the stdio server                   |
 
@@ -54,9 +55,9 @@ make ci
 
 ## Install
 
-| Path | How |
-| --- | --- |
-| From source | `cargo +stable install --path . --force` |
+| Path           | How                                                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| From source    | `cargo +stable install --path . --force`                                                                                         |
 | Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-mcp-*-x86_64-unknown-linux-gnu` |
 
 ## MCP clients

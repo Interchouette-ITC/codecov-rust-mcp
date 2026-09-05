@@ -3,7 +3,7 @@
 ## Code changes
 
 - Prefer one concern per PR.
-- Run `make lint`, `make test`, and `make deny` before push (or `make ci` when you also need rustdoc).
+- Run `make lint`, `make test`, `make audit`, and `make deny` before push (or `make ci` when you also need rustdoc).
 - Conventional commits: `feat: …`, `fix: …`, `docs: …`, `ci: …`, etc.
 - PR body follows [`pull_request_template.md`](pull_request_template.md) (**Summary** + **Test plan** only).
 - Follow the [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) and [`SECURITY.md`](SECURITY.md).
@@ -14,6 +14,7 @@
 | --- | --- |
 | `make lint` | `fmt --check` + clippy (pedantic / nursery deny) |
 | `make test` | Unit + integration tests |
+| `make audit` | `cargo audit` |
 | `make deny` | `cargo deny check` |
 | `make doc` | rustdoc → `docs/api-rust/` |
 | `make ci` | `lint` + `test` + `doc` |

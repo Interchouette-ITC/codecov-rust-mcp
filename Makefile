@@ -4,10 +4,10 @@ CLIPPY_FLAGS := -D warnings -D clippy::all -D clippy::pedantic -D clippy::nurser
 CARGO ?= cargo +stable
 DOC_OUT ?= target/doc
 
-.PHONY: build release lint test coverage deny doc doc-open doc-clean ci run help
+.PHONY: build release lint test coverage audit deny doc doc-open doc-clean ci run help
 
 help:
-	@echo "Targets: build release lint test coverage deny doc doc-open doc-clean ci run"
+	@echo "Targets: build release lint test coverage audit deny doc doc-open doc-clean ci run"
 
 build:
 	$(CARGO) build
@@ -28,6 +28,10 @@ coverage:
 	RUSTUP_TOOLCHAIN=stable $(CARGO) llvm-cov --lcov \
 		--ignore-filename-regex 'examples/|src/main\.rs|src/test_env\.rs' \
 		--output-path coverage/lcov.info
+
+## Requires `cargo install cargo-audit`.
+audit:
+	$(CARGO) audit
 
 ## Requires `cargo install cargo-deny`.
 deny:
