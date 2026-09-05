@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":["miss_files_from_report","miss_files_result"],"struct":["CoverageReport","MissFile","MissFilesResult","ReportFile","ReportTotals"]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":["DEFAULT_API_URL"],"enum":["ClientError"],"fn":["require_token"],"struct":["CodecovClient"]};
