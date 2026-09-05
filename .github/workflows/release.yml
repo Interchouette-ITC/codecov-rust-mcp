@@ -1,0 +1,103 @@
+name: Release
+
+# On GitHub Release vX.Y.Z: validate Cargo.toml, build codecov-mcp, attach the Linux binary.
+on:
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag to attach the binary to (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  CARGO_TERM_COLOR: always
+
+jobs:
+  validate:
+    name: Validate Tag
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.extract.outputs.version }}
+      tag: ${{ steps.extract.outputs.tag }}
+    steps:
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="${{ github.event.release.tag_name }}"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tag.outputs.tag }}
+
+      - name: Validate release tag matches Cargo.toml
+        id: extract
+        run: |
+          TAG="${{ steps.tag.outputs.tag }}"
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid tag format: $TAG (expected vX.Y.Z)"
+            exit 1
+          fi
+          VERSION="${TAG#v}"
+          CARGO_VERSION="$(awk '/^version = /{gsub(/"/, "", $3); print $3; exit}' Cargo.toml)"
+          if [ "$VERSION" != "$CARGO_VERSION" ]; then
+            echo "Release tag version ($VERSION) does not match Cargo.toml ($CARGO_VERSION)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "OK: tag $TAG matches Cargo.toml $CARGO_VERSION"
+
+  build-and-upload:
+    name: Build and upload binary
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binary
+        run: cargo build --release --bin codecov-mcp
+
+      - name: Name asset for the release
+        run: |
+          cp target/release/codecov-mcp \
+            "codecov-mcp-${{ needs.validate.outputs.version }}-x86_64-unknown-linux-gnu"
+          chmod +x "codecov-mcp-${{ needs.validate.outputs.version }}-x86_64-unknown-linux-gnu"
+
+      - name: Upload binary to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          files: |
+            codecov-mcp-${{ needs.validate.outputs.version }}-x86_64-unknown-linux-gnu
+          fail_on_unmatched_files: true
+
+  summary:
+    name: Summary
+    needs: [validate, build-and-upload]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Summary
+        run: |
+          V="${{ needs.validate.outputs.version }}"
+          echo "Attached codecov-mcp-${V}-x86_64-unknown-linux-gnu to release v${V}"
