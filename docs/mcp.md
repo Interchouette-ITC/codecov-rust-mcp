@@ -55,10 +55,10 @@ make ci
 
 ## Install
 
-| Path           | How                                                                                                                                              |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| From source    | `cargo +stable install --path . --force`                                                                                                         |
-| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu`            |
+| Path           | How                                                                                                                                                                |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| From source    | `cargo +stable install --path . --force`                                                                                                                           |
+| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu`                              |
 | Docker         | `docker pull interchouette/codecov-rust-mcp:latest` then `docker run -p 8690:8690 -e CODECOV_TOKEN …` (HTTP `/mcp`; see [`docker/README.md`](../docker/README.md)) |
 
 ## MCP clients

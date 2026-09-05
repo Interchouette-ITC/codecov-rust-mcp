@@ -10,4 +10,4 @@ pub mod tool_args;
 mod test_env;
 
 pub use env_file::load_dotenv;
-pub use server::{run, run_http, CodecovMcp, DEFAULT_HTTP_LISTEN};
+pub use server::{run_http, CodecovMcp, DEFAULT_HTTP_LISTEN};

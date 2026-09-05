@@ -11,8 +11,9 @@ use anyhow::Result;
 use clap::Parser;
 use codecov_rust_mcp::{
     load_dotenv,
-    server::{run, run_http, DEFAULT_HTTP_LISTEN},
+    server::{run_http, CodecovMcp, DEFAULT_HTTP_LISTEN},
 };
+use rmcp::{transport::stdio, ServiceExt};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -59,7 +60,14 @@ async fn main() -> Result<()> {
             .map_err(|err| anyhow::anyhow!("{err}"))?;
     } else {
         tracing::info!("codecov-rust-mcp starting (stdio)");
-        run().await.map_err(|err| anyhow::anyhow!("{err}"))?;
+        let service = CodecovMcp
+            .serve(stdio())
+            .await
+            .map_err(|err| anyhow::anyhow!("{err}"))?;
+        service
+            .waiting()
+            .await
+            .map_err(|err| anyhow::anyhow!("{err}"))?;
     }
     Ok(())
 }

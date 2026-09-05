@@ -11,8 +11,8 @@ Size-optimized multi-stage build → distroless `cc-debian13` (Debian 13, non-ro
 
 ## What’s inside
 
-| Binary | Role |
-| --- | --- |
+| Binary             | Role                                                                       |
+| ------------------ | -------------------------------------------------------------------------- |
 | `codecov-rust-mcp` | MCP server (`codecov_totals`, `codecov_miss_files`, `codecov_file_report`) |
 
 ## Quick start
@@ -31,20 +31,20 @@ AI clients that support Streamable HTTP can use `http://localhost:8690/mcp` when
 
 ## Environment
 
-| Env | Default | Meaning |
-| --- | --- | --- |
-| `CODECOV_TOKEN` | (required) | Codecov **Access** token (not a CI upload token) |
-| `CODECOV_API_URL` | Codecov API v2 | Optional API base override |
-| `MCP_HTTP` | `true` in image | Serve Streamable HTTP instead of stdio |
-| `CODECOV_MCP_ADDR` | `0.0.0.0:8690` in image | HTTP bind address |
+| Env                | Default                 | Meaning                                          |
+| ------------------ | ----------------------- | ------------------------------------------------ |
+| `CODECOV_TOKEN`    | (required)              | Codecov **Access** token (not a CI upload token) |
+| `CODECOV_API_URL`  | Codecov API v2          | Optional API base override                       |
+| `MCP_HTTP`         | `true` in image         | Serve Streamable HTTP instead of stdio           |
+| `CODECOV_MCP_ADDR` | `0.0.0.0:8690` in image | HTTP bind address                                |
 
 ## Tags
 
-| Tag | Meaning |
-| --- | --- |
-| `:dev` | Latest development image (push to `dev` / workflow_dispatch) |
-| `:X.Y.Z` | Release matching `Cargo.toml` / GitHub Release `vX.Y.Z` |
-| `:latest` | Moves with each release |
+| Tag       | Meaning                                                      |
+| --------- | ------------------------------------------------------------ |
+| `:dev`    | Latest development image (push to `dev` / workflow_dispatch) |
+| `:X.Y.Z`  | Release matching `Cargo.toml` / GitHub Release `vX.Y.Z`      |
+| `:latest` | Moves with each release                                      |
 
 ## Docs
 

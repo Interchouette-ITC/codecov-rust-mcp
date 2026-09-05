@@ -2,13 +2,13 @@
 
 Secure runtime image for the MCP binary (Streamable HTTP by default).
 
-| Item | Value |
-| --- | --- |
-| Hub | `interchouette/codecov-rust-mcp` |
-| Org GHCR | `ghcr.io/interchouette-itc/codecov-rust-mcp` |
-| Dockerfile | [`Dockerfile`](Dockerfile) |
+| Item                | Value                                                                     |
+| ------------------- | ------------------------------------------------------------------------- |
+| Hub                 | `interchouette/codecov-rust-mcp`                                          |
+| Org GHCR            | `ghcr.io/interchouette-itc/codecov-rust-mcp`                              |
+| Dockerfile          | [`Dockerfile`](Dockerfile)                                                |
 | Hub Overview source | [`DOCKERHUB.md`](DOCKERHUB.md) (sync to Hub; do not invent Overview copy) |
-| HTTP | `0.0.0.0:8690` → `/mcp` |
+| HTTP                | `0.0.0.0:8690` → `/mcp`                                                   |
 
 ## Build / push
 
@@ -18,7 +18,7 @@ make docker-build-dev      # :dev + :latest (+ GHCR name tags)
 make docker-push-dev-hub   # after login
 ```
 
-CI: `.github/workflows/docker-build-push-dev.yml` (push to `dev` touching docker/src/Cargo.*, or `workflow_dispatch`). Release workflow pushes `:X.Y.Z` + `:latest`.
+CI: `.github/workflows/docker-build-push-dev.yml` (push to `dev` touching docker/src/Cargo.\*, or `workflow_dispatch`). Release workflow pushes `:X.Y.Z` + `:latest`.
 
 Image is multi-stage → `gcr.io/distroless/cc-debian13:nonroot`. No shell as PID 1.
 
