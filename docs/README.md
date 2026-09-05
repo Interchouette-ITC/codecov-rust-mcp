@@ -40,6 +40,8 @@ cp .env.example "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-mcp/.env"
 
 Point any MCP-capable agent or IDE at [`mcp.json.example`](../mcp.json.example): run `codecov-mcp` on `PATH`. Token stays in user config `.env` (or process env), not in the MCP host JSON.
 
+Prebuilt Linux binary: [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) (`codecov-mcp-*-x86_64-unknown-linux-gnu`).
+
 ## Thanks
 
 Thanks to [GitHub](https://github.com/) for hosting and Actions, and to [Codecov](https://about.codecov.io/) for coverage reports and the [API](https://docs.codecov.com/) this server wraps.

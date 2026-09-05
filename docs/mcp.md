@@ -51,6 +51,13 @@ make test
 make ci
 ```
 
+## Install
+
+| Path | How |
+| --- | --- |
+| From source | `cargo +stable install --path . --force` |
+| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-mcp-*-x86_64-unknown-linux-gnu` |
+
 ## MCP clients
 
 Works with any host that speaks MCP stdio (agents, IDEs, CLIs). No vendor-specific checkout path in config.
