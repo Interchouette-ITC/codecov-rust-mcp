@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "codecov": {
-      "command": "bash",
-      "args": ["${userHome}/.cursor/scripts/codecov-mcp.sh"]
+      "command": "codecov-mcp"
     }
   }
 }

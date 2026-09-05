@@ -2,7 +2,8 @@
 
 use anyhow::Result;
 use clap::Parser;
-use codecov_mcp::{load_dotenv, run};
+use codecov_mcp::{load_dotenv, CodecovMcp};
+use rmcp::{transport::stdio, ServiceExt};
 
 #[derive(Debug, Parser)]
 #[command(
@@ -13,7 +14,7 @@ use codecov_mcp::{load_dotenv, run};
 struct Cli {}
 
 fn init_logging() {
-    // Keep stdio MCP quiet: Cursor surfaces any stderr line as [error].
+    // Keep stdio MCP quiet: many hosts treat any stderr line as an error.
     // Default warn; override with RUST_LOG when debugging.
     let filter = tracing_subscriber::EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("warn"));
@@ -30,6 +31,14 @@ async fn main() -> Result<()> {
     init_logging();
     let _cli = Cli::parse();
     tracing::info!("codecov-mcp starting (stdio)");
-    run().await.map_err(|err| anyhow::anyhow!("{err}"))?;
+    let server = CodecovMcp;
+    let service = server
+        .serve(stdio())
+        .await
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
+    service
+        .waiting()
+        .await
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
     Ok(())
 }

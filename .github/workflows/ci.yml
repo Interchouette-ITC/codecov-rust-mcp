@@ -23,6 +23,8 @@ jobs:
     name: fmt · clippy · test · rustdoc
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
@@ -31,6 +33,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: lint + test + rustdoc
         run: make ci
+      - name: Github pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
+        uses: JamesIves/github-pages-deploy-action@ba1486788b0490a235422264426c45848eac35c6 #v4.4.1
+        with:
+          folder: docs/api-rust
+          commit-message: "Deploy documentation for ${{ github.ref_name }}"
 
   coverage:
     name: coverage
