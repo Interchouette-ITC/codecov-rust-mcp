@@ -5,7 +5,7 @@
   <a href="https://codecov.io/gh/Interchouette-ITC/codecov-rust-mcp"><img src="https://codecov.io/gh/Interchouette-ITC/codecov-rust-mcp/branch/dev/graph/badge.svg" alt="codecov" /></a>
 </p>
 
-MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Exposes three read tools so agents can check coverage totals, list files with misses, and inspect a single file report.
+MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio** or **Streamable HTTP**. Exposes three read tools so agents can check coverage totals, list files with misses, and inspect a single file report.
 
 Canonical repo: [Interchouette-ITC/codecov-rust-mcp](https://github.com/Interchouette-ITC/codecov-rust-mcp).
 
@@ -45,7 +45,7 @@ Point any MCP-capable agent or IDE at [`mcp.json.example`](../mcp.json.example):
 
 Prebuilt Linux binary: [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) (`codecov-rust-mcp-*-x86_64-unknown-linux-gnu`).
 
-Docker image: [`interchouette/codecov-rust-mcp`](https://hub.docker.com/r/interchouette/codecov-rust-mcp) (stdio via `docker run --rm -i -e CODECOV_TOKEN …`). Hub Overview source: [`docker/DOCKERHUB.md`](../docker/DOCKERHUB.md).
+Docker image: [`interchouette/codecov-rust-mcp`](https://hub.docker.com/r/interchouette/codecov-rust-mcp) (Streamable HTTP on `:8690` /mcp by default). Hub Overview source: [`docker/DOCKERHUB.md`](../docker/DOCKERHUB.md).
 
 ## Thanks
 

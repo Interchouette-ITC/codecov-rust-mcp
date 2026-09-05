@@ -115,7 +115,7 @@ docker-build-dev:
 
 docker-run: docker-build-dev
 	@test -n "$$CODECOV_TOKEN" || (echo "Set CODECOV_TOKEN in the environment"; exit 1)
-	docker run --rm -i -e CODECOV_TOKEN $(HUB_IMAGE):latest
+	docker run --rm -p 8690:8690 -e CODECOV_TOKEN $(HUB_IMAGE):latest
 
 docker-push-dev-hub:
 	docker push $(HUB_IMAGE):dev

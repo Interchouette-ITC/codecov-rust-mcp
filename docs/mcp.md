@@ -55,19 +55,30 @@ make ci
 
 ## Install
 
-| Path           | How                                                                                                                                    |
-| -------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| From source    | `cargo +stable install --path . --force`                                                                                               |
-| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu` |
-| Docker         | `docker pull interchouette/codecov-rust-mcp:latest` then `docker run --rm -i -e CODECOV_TOKEN …` (see [`docker/README.md`](../docker/README.md)) |
+| Path           | How                                                                                                                                              |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| From source    | `cargo +stable install --path . --force`                                                                                                         |
+| Prebuilt Linux | [GitHub Releases](https://github.com/Interchouette-ITC/codecov-rust-mcp/releases) asset `codecov-rust-mcp-*-x86_64-unknown-linux-gnu`            |
+| Docker         | `docker pull interchouette/codecov-rust-mcp:latest` then `docker run -p 8690:8690 -e CODECOV_TOKEN …` (HTTP `/mcp`; see [`docker/README.md`](../docker/README.md)) |
 
 ## MCP clients
 
-Works with any host that speaks MCP stdio (agents, IDEs, CLIs). No vendor-specific checkout path in config.
+Works with any host that speaks MCP **stdio** or **Streamable HTTP** (agents, IDEs, CLIs).
+
+### stdio (default)
 
 1. Install the binary on `PATH`: `cargo +stable install --path . --force`
 2. Put `CODECOV_TOKEN` in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). Never commit tokens.
-3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-rust-mcp"`. Adapt the JSON shape if your host uses a different key layout; the process is always stdio.
+3. Register the server like [`mcp.json.example`](../mcp.json.example): `"command": "codecov-rust-mcp"`.
+
+### Streamable HTTP
+
+```bash
+codecov-rust-mcp --http --listen 0.0.0.0:8690
+# or: MCP_HTTP=true CODECOV_MCP_ADDR=0.0.0.0:8690 codecov-rust-mcp
+```
+
+Endpoint: `http://<host>:8690/mcp`. Docker image defaults to this mode (port **8690**). See [`docker/README.md`](../docker/README.md).
 
 ## Example
 

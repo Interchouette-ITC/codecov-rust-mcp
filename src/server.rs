@@ -1,15 +1,22 @@
-//! MCP server (`rmcp`) for Codecov over stdio.
+//! MCP server (`rmcp`) for Codecov (stdio or Streamable HTTP).
 
 #![allow(clippy::unused_async)]
+
+use std::sync::Arc;
 
 use rmcp::{
     handler::server::wrapper::Parameters,
     model::{CallToolResult, ContentBlock, ServerCapabilities, ServerInfo},
-    tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
+    tool, tool_handler, tool_router,
+    transport::stdio,
+    ErrorData as McpError, ServerHandler, ServiceExt,
 };
 
 use crate::client::CodecovClient;
 use crate::tool_args::{FileReportArgs, MissFilesArgs, RepoArgs};
+
+/// Default Streamable HTTP bind address.
+pub const DEFAULT_HTTP_LISTEN: &str = "127.0.0.1:8690";
 
 /// MCP server handle exposing Codecov coverage tools.
 #[derive(Clone, Default)]
@@ -150,6 +157,43 @@ impl ServerHandler for CodecovMcp {
                 "Codecov coverage tools: codecov_totals, codecov_miss_files, codecov_file_report. Requires CODECOV_TOKEN; optional CODECOV_API_URL.",
             )
     }
+}
+
+/// Serves MCP over stdio until the client disconnects.
+///
+/// # Errors
+///
+/// Returns transport / protocol errors from rmcp.
+pub async fn run() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let server = CodecovMcp;
+    let service = server.serve(stdio()).await?;
+    service.waiting().await?;
+    Ok(())
+}
+
+/// Serves MCP over Streamable HTTP until the process is stopped.
+///
+/// # Errors
+///
+/// Returns I/O errors from binding or serving.
+pub async fn run_http(addr: &str) -> std::io::Result<()> {
+    let config =
+        rmcp::transport::streamable_http_server::tower::StreamableHttpServerConfig::default();
+    let service = rmcp::transport::streamable_http_server::tower::StreamableHttpService::new(
+        || Ok(CodecovMcp),
+        Arc::new(
+            rmcp::transport::streamable_http_server::session::local::LocalSessionManager::default(),
+        ),
+        config,
+    );
+    let method_router = axum::routing::any_service(service);
+    let app = axum::Router::new()
+        .route("/mcp", method_router.clone())
+        .route("/mcp/", method_router);
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!(%addr, "codecov-rust-mcp HTTP listening");
+    axum::serve(listener, app).await?;
+    Ok(())
 }
 
 #[cfg(test)]

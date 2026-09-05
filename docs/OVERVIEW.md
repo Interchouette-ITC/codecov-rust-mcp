@@ -1,7 +1,7 @@
 # Overview
 
 **codecov-rust-mcp** is a small Rust [MCP](https://modelcontextprotocol.io/) server
-over **stdio**. It wraps the [Codecov](https://docs.codecov.com/) API v2 so
+(**stdio** or **Streamable HTTP**). It wraps the [Codecov](https://docs.codecov.com/) API v2 so
 agents and IDEs can read coverage without scraping HTML or parsing local
 `lcov` by hand.
 

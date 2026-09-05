@@ -1,12 +1,14 @@
 # syntax=docker/dockerfile:1
 #
-# codecov-rust-mcp - MCP stdio server for the Codecov API.
+# codecov-rust-mcp - MCP server for the Codecov API (Streamable HTTP in Docker).
 # Multi-stage → distroless cc-debian13 (non-root). Build context: repository root.
 #
 #   docker build -f docker/Dockerfile -t interchouette/codecov-rust-mcp:latest .
 #   make docker-build
 #
-# Runtime speaks MCP over stdio (docker run -i). Outbound HTTPS to Codecov needs CA certs.
+# Default CMD: Streamable HTTP on :8690 (/mcp). Override for stdio:
+#   docker run --rm -i -e CODECOV_TOKEN interchouette/codecov-rust-mcp:latest
+#   (replace entrypoint args: omit --http)
 
 ARG RUST_IMAGE=rust:slim-trixie
 ARG RUNTIME_IMAGE=gcr.io/distroless/cc-debian13:nonroot
@@ -58,10 +60,14 @@ COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifi
 USER nonroot:nonroot
 
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
-    SSL_CERT_DIR=/etc/ssl/certs
+    SSL_CERT_DIR=/etc/ssl/certs \
+    MCP_HTTP=true \
+    CODECOV_MCP_ADDR=0.0.0.0:8690
+
+EXPOSE 8690
 
 LABEL org.opencontainers.image.title="codecov-rust-mcp" \
-      org.opencontainers.image.description="MCP server for the Codecov API (stdio): coverage totals, miss files, file reports" \
+      org.opencontainers.image.description="MCP server for the Codecov API (stdio or Streamable HTTP)" \
       org.opencontainers.image.vendor="Interchouette" \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.version="${APP_VERSION}" \
