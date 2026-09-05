@@ -1,4 +1,5 @@
 /target
+/coverage
 /.run
 .env
 .env.*

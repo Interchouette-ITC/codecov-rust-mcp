@@ -6,10 +6,14 @@ use std::path::{Path, PathBuf};
 ///
 /// Search order:
 /// 1. `dotenvy::dotenv()` (current directory, then parents)
-/// 2. Repo root inferred from the running binary (`…/target/{debug,release}/codecov-mcp` → `…/.env`)
+/// 2. Repo root inferred from a checkout binary (`…/target/{debug,release}/…` → `…/.env`)
+/// 3. User config: `$XDG_CONFIG_HOME/codecov-mcp/.env` or `$HOME/.config/codecov-mcp/.env`
 pub fn load_dotenv() {
     let _ = dotenvy::dotenv();
     if let Some(path) = repo_env_path() {
+        let _ = dotenvy::from_path(path);
+    }
+    if let Some(path) = user_config_env_path() {
         let _ = dotenvy::from_path(path);
     }
 }
@@ -26,13 +30,21 @@ fn repo_env_path() -> Option<PathBuf> {
     Path::new(&path).is_file().then_some(path)
 }
 
+fn user_config_env_path() -> Option<PathBuf> {
+    let base = std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))?;
+    let path = base.join("codecov-mcp").join(".env");
+    path.is_file().then_some(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn repo_env_path_none_without_target_layout() {
-        // Unit test does not require a real exe under target/; just ensures helper is callable.
+    fn repo_env_path_helper_is_callable() {
         let _ = repo_env_path();
+        let _ = user_config_env_path();
     }
 }
