@@ -32,7 +32,7 @@ jobs:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
       - name: lint + test + rustdoc
-        run: make ci
+        run: make lint && make test && make doc
       - name: Github pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/dev'
         uses: JamesIves/github-pages-deploy-action@ba1486788b0490a235422264426c45848eac35c6 #v4.4.1
