@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use rmcp::{
     handler::server::wrapper::Parameters,
-    model::{CallToolResult, ContentBlock, ServerCapabilities, ServerInfo},
+    model::{CallToolResult, ContentBlock, ServerCapabilities, ServerConfig},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
 
@@ -145,8 +145,8 @@ impl CodecovMcp {
 #[tool_handler]
 #[allow(clippy::unused_async_trait_impl)]
 impl ServerHandler for CodecovMcp {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(rmcp::model::Implementation::new(
                 "codecov",
                 env!("CARGO_PKG_VERSION"),
