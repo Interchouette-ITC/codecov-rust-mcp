@@ -6,7 +6,7 @@
 <a href=#6 id=6 data-nosnippet>6</a>
 <a href=#7 id=7 data-nosnippet>7</a><span class="kw">use </span>rmcp::{
 <a href=#8 id=8 data-nosnippet>8</a>    handler::server::wrapper::Parameters,
-<a href=#9 id=9 data-nosnippet>9</a>    model::{CallToolResult, ContentBlock, ServerCapabilities, ServerInfo},
+<a href=#9 id=9 data-nosnippet>9</a>    model::{CallToolResult, ContentBlock, ServerCapabilities, ServerConfig},
 <a href=#10 id=10 data-nosnippet>10</a>    tool, tool_handler, tool_router, ErrorData <span class="kw">as </span>McpError, ServerHandler,
 <a href=#11 id=11 data-nosnippet>11</a>};
 <a href=#12 id=12 data-nosnippet>12</a>
@@ -145,8 +145,8 @@
 <a href=#145 id=145 data-nosnippet>145</a><span class="attr">#[tool_handler]
 <a href=#146 id=146 data-nosnippet>146</a>#[allow(clippy::unused_async_trait_impl)]
 <a href=#147 id=147 data-nosnippet>147</a></span><span class="kw">impl </span>ServerHandler <span class="kw">for </span>CodecovMcp {
-<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">fn </span>get_info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ServerInfo {
-<a href=#149 id=149 data-nosnippet>149</a>        ServerInfo::new(ServerCapabilities::builder().enable_tools().build())
+<a href=#148 id=148 data-nosnippet>148</a>    <span class="kw">fn </span>get_info(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ServerConfig {
+<a href=#149 id=149 data-nosnippet>149</a>        ServerConfig::new(ServerCapabilities::builder().enable_tools().build())
 <a href=#150 id=150 data-nosnippet>150</a>            .with_server_info(rmcp::model::Implementation::new(
 <a href=#151 id=151 data-nosnippet>151</a>                <span class="string">"codecov"</span>,
 <a href=#152 id=152 data-nosnippet>152</a>                <span class="macro">env!</span>(<span class="string">"CARGO_PKG_VERSION"</span>),
