@@ -452,7 +452,7 @@ mod tests {
     fn new_stores_trimmed_base() {
         let client = CodecovClient::new("tok", "https://api.codecov.io/api/v2/");
         assert_eq!(client.api_base(), DEFAULT_API_URL);
-        assert!(!client.token.is_empty());
+        assert_ne!(client.token, "");
     }
 
     #[tokio::test]
@@ -563,7 +563,7 @@ mod tests {
         // Newlines are invalid in HTTP header values.
         let client = CodecovClient::new("bad\ntoken", "https://api.codecov.io/api/v2/");
         assert_eq!(client.api_base(), DEFAULT_API_URL);
-        assert!(!client.token.is_empty());
+        assert_ne!(client.token, "");
     }
 
     #[test]
