@@ -3,7 +3,10 @@
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
 
-use crate::report::{miss_files_result, CoverageReport, MissFilesResult, ReportFile};
+use crate::report::{
+    miss_files_result, pull_coverage_report, CoverageReport, MissFilesResult, PullComparison,
+    PullCoverageReport, ReportFile,
+};
 
 /// Encode path/query components; keep unreserved `-_.` but encode `/`.
 const COMPONENT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(b'.');
@@ -22,6 +25,8 @@ pub enum ClientError {
     Api { status: u16, body: String },
     /// Response JSON could not be decoded.
     Json(serde_json::Error),
+    /// Codecov returned an unexpected comparison report.
+    Report(String),
 }
 
 impl std::fmt::Display for ClientError {
@@ -36,6 +41,7 @@ impl std::fmt::Display for ClientError {
                 write!(f, "Codecov API {status}: {snippet}")
             }
             Self::Json(err) => write!(f, "JSON error: {err}"),
+            Self::Report(err) => write!(f, "Codecov comparison report error: {err}"),
         }
     }
 }
@@ -45,7 +51,7 @@ impl std::error::Error for ClientError {
         match self {
             Self::Http(err) => Some(err),
             Self::Json(err) => Some(err),
-            Self::MissingToken | Self::Api { .. } => None,
+            Self::MissingToken | Self::Api { .. } | Self::Report(_) => None,
         }
     }
 }
@@ -179,6 +185,17 @@ impl CodecovClient {
         url
     }
 
+    /// Builds the Codecov pull comparison URL for a pull request.
+    #[must_use]
+    pub fn pull_comparison_url(api_base: &str, owner: &str, repo: &str, pull_id: u64) -> String {
+        let base = trim_trailing_slash(api_base.to_string());
+        format!(
+            "{base}/github/{}/repos/{}/compare/?pullid={pull_id}",
+            enc(owner),
+            enc(repo)
+        )
+    }
+
     /// Fetches commit coverage totals (including per-file breakdown).
     ///
     /// # Errors
@@ -227,6 +244,22 @@ impl CodecovClient {
     ) -> Result<ReportFile, ClientError> {
         let url = Self::file_report_url(&self.api_base, owner, repo, path, branch, sha);
         self.get_json(&url).await
+    }
+
+    /// Fetches a pull request's Codecov patch comparison and missed changed lines.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ClientError::Http`], [`ClientError::Api`], or [`ClientError::Json`].
+    pub async fn pull_report(
+        &self,
+        owner: &str,
+        repo: &str,
+        pull_id: u64,
+    ) -> Result<PullCoverageReport, ClientError> {
+        let url = Self::pull_comparison_url(&self.api_base, owner, repo, pull_id);
+        let comparison: PullComparison = self.get_json(&url).await?;
+        pull_coverage_report(pull_id, comparison).map_err(ClientError::Report)
     }
 
     pub(crate) async fn get_json<T: serde::de::DeserializeOwned>(
@@ -445,6 +478,20 @@ mod tests {
         assert!(
             !url.contains("lib.rs/"),
             "trailing slash after path breaks Codecov file_report lookups: {url}"
+        );
+    }
+
+    #[test]
+    fn pull_comparison_url_uses_codecove_pull_id_endpoint() {
+        let url = CodecovClient::pull_comparison_url(
+            "https://api.codecov.io/api/v2/",
+            "Interchouette-ITC",
+            "rangular",
+            97,
+        );
+        assert_eq!(
+            url,
+            "https://api.codecov.io/api/v2/github/Interchouette-ITC/repos/rangular/compare/?pullid=97"
         );
     }
 

@@ -52,3 +52,14 @@ pub struct FileReportArgs {
     #[serde(default)]
     pub sha: Option<String>,
 }
+
+/// Arguments for `codecov_pr_report`.
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct PullReportArgs {
+    /// GitHub owner or org (e.g. `Interchouette-ITC`).
+    pub owner: String,
+    /// Repository name (e.g. `rangular`).
+    pub repo: String,
+    /// Pull request number from the PR URL (e.g. `97`).
+    pub pull_id: u64,
+}

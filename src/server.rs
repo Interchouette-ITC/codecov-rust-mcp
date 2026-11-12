@@ -11,7 +11,7 @@ use rmcp::{
 };
 
 use crate::client::CodecovClient;
-use crate::tool_args::{FileReportArgs, MissFilesArgs, RepoArgs};
+use crate::tool_args::{FileReportArgs, MissFilesArgs, PullReportArgs, RepoArgs};
 
 /// Default Streamable HTTP bind address.
 pub const DEFAULT_HTTP_LISTEN: &str = "127.0.0.1:8690";
@@ -90,11 +90,23 @@ pub(crate) async fn file_report_with_client(
     Ok(text_ok(to_json_text(&report)?))
 }
 
+/// Fetches a Codecov pull comparison and returns patch misses with line numbers.
+pub(crate) async fn pull_report_with_client(
+    client: &CodecovClient,
+    args: PullReportArgs,
+) -> Result<CallToolResult, McpError> {
+    let report = client
+        .pull_report(&args.owner, &args.repo, args.pull_id)
+        .await
+        .map_err(|err| mcp_err(err.to_string()))?;
+    Ok(text_ok(to_json_text(&report)?))
+}
+
 #[tool_router]
 impl CodecovMcp {
-    /// Returns commit coverage totals for a GitHub repository.
+    /// Returns whole-commit coverage totals for a GitHub repository, not PR patch coverage.
     #[tool(
-        description = "Codecov commit coverage totals for a GitHub owner/repo (optional branch or sha)"
+        description = "Codecov whole-commit coverage totals for a GitHub owner/repo (optional branch or sha). This is not PR patch coverage: hits, misses, and lines summarize the entire commit."
     )]
     async fn codecov_totals(
         &self,
@@ -104,9 +116,9 @@ impl CodecovMcp {
         totals_with_client(&client, args).await
     }
 
-    /// Returns commit totals plus files with missed lines, sorted by misses descending.
+    /// Returns whole-commit totals plus files with missed lines, sorted by misses descending.
     #[tool(
-        description = "Codecov miss files for a GitHub owner/repo: totals + files sorted by misses desc + returned count (limit default 30; 0 = uncapped)"
+        description = "Codecov whole-commit totals plus files with misses, sorted by misses descending. This is not PR patch coverage. Limit defaults to 30; 0 is uncapped."
     )]
     async fn codecov_miss_files(
         &self,
@@ -116,14 +128,28 @@ impl CodecovMcp {
         miss_files_with_client(&client, args).await
     }
 
-    /// Returns line coverage for one repository-relative path.
-    #[tool(description = "Codecov line coverage report for one file path in a GitHub owner/repo")]
+    /// Returns whole-file coverage; Codecov's line values are miss flags, not hit counts.
+    #[tool(
+        description = "Codecov whole-file line coverage for a repository-relative path. Each line_coverage pair is [line_number, status]: 0 means covered, 1 missed, and 2 partial; the value is a status, not a hit count. File totals are not PR patch coverage."
+    )]
     async fn codecov_file_report(
         &self,
         Parameters(args): Parameters<FileReportArgs>,
     ) -> Result<CallToolResult, McpError> {
         let client = client_from_env()?;
         file_report_with_client(&client, args).await
+    }
+
+    /// Returns Codecov's PR patch summary and exact missed/partial added lines.
+    #[tool(
+        description = "Analyze a pull request directly through Codecov (no GitHub API or head SHA required). Inputs: GitHub owner, repo, and pull request number from the PR URL. Uses Codecov's compare/?pullid= endpoint. Returns authoritative patch coverage/totals and per-file added lines missed or partially covered, with head line numbers and source text. In line comparisons, 0=covered, 1=missed, 2=partial; null means unmeasured, not missed. Use this tool when asked to review/fix tests or coverage for a PR."
+    )]
+    async fn codecov_pr_report(
+        &self,
+        Parameters(args): Parameters<PullReportArgs>,
+    ) -> Result<CallToolResult, McpError> {
+        let client = client_from_env()?;
+        pull_report_with_client(&client, args).await
     }
 }
 
@@ -140,6 +166,10 @@ impl CodecovMcp {
     async fn call_file_report(&self, args: FileReportArgs) -> Result<CallToolResult, McpError> {
         self.codecov_file_report(Parameters(args)).await
     }
+
+    async fn call_pull_report(&self, args: PullReportArgs) -> Result<CallToolResult, McpError> {
+        self.codecov_pr_report(Parameters(args)).await
+    }
 }
 
 #[tool_handler]
@@ -152,7 +182,7 @@ impl ServerHandler for CodecovMcp {
                 env!("CARGO_PKG_VERSION"),
             ))
             .with_instructions(
-                "Codecov coverage tools: codecov_totals, codecov_miss_files, codecov_file_report. Requires CODECOV_TOKEN; optional CODECOV_API_URL.",
+                "Codecov coverage tools: codecov_pr_report, codecov_totals, codecov_miss_files, codecov_file_report. Requires CODECOV_TOKEN; optional CODECOV_API_URL. For PR coverage requests, use codecov_pr_report with owner, repo, and pull_id parsed from the PR URL. It calls Codecov's pull comparison API directly and returns patch totals plus missed/partial added lines with file, line number, and source. No GitHub API lookup or PR-head SHA resolution is needed. The PR patch totals are authoritative and distinct from whole-commit totals. In codecov_pr_report comparisons and codecov_file_report arrays, line status 0 means covered, 1 missed, 2 partial; null is unmeasured. Use totals.hits, totals.misses, and totals.lines for whole-commit counts, not for patch coverage.",
             )
     }
 }
@@ -201,7 +231,7 @@ mod tests {
     use super::*;
     use crate::test_env::{env_lock, restore_env};
     use serde_json::json;
-    use wiremock::matchers::{method, path_regex};
+    use wiremock::matchers::{method, path_regex, query_param};
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn sample_totals_json() -> serde_json::Value {
@@ -247,6 +277,48 @@ mod tests {
                 "methods": 0
             },
             "line_coverage": [[1, 1]]
+        })
+    }
+
+    fn sample_pull_comparison_json() -> serde_json::Value {
+        let totals = json!({
+            "files": 1,
+            "lines": 1,
+            "hits": 0,
+            "misses": 1,
+            "partials": 0,
+            "coverage": 0.0,
+            "branches": 0,
+            "methods": 0
+        });
+        json!({
+            "base_commit": "base",
+            "head_commit": "head",
+            "totals": {
+                "base": totals,
+                "head": totals,
+                "patch": totals
+            },
+            "files": [{
+                "name": {
+                    "base": "src/lib.rs",
+                    "head": "src/lib.rs"
+                },
+                "totals": {
+                    "base": totals,
+                    "head": totals,
+                    "patch": totals
+                },
+                "lines": [{
+                    "value": "+fn uncovered() {}",
+                    "number": { "base": null, "head": 10 },
+                    "coverage": { "base": null, "head": 1 },
+                    "is_diff": true,
+                    "added": true,
+                    "removed": false,
+                    "sessions": 0
+                }]
+            }]
         })
     }
 
@@ -486,6 +558,12 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_file_report_json()))
             .mount(&server)
             .await;
+        Mock::given(method("GET"))
+            .and(path_regex(r".*/compare/"))
+            .and(query_param("pullid", "97"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(sample_pull_comparison_json()))
+            .mount(&server)
+            .await;
 
         let prev_token = std::env::var("CODECOV_TOKEN").ok();
         let prev_url = std::env::var("CODECOV_API_URL").ok();
@@ -527,6 +605,16 @@ mod tests {
             .await
             .expect("file tool");
         assert!(file.is_error.is_none() || file.is_error == Some(false));
+
+        let pull = mcp
+            .call_pull_report(PullReportArgs {
+                owner: "o".into(),
+                repo: "r".into(),
+                pull_id: 97,
+            })
+            .await
+            .expect("PR report tool");
+        assert!(pull.is_error.is_none() || pull.is_error == Some(false));
 
         restore_env("CODECOV_TOKEN", prev_token);
         restore_env("CODECOV_API_URL", prev_url);

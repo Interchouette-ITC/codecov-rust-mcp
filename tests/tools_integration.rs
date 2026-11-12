@@ -67,6 +67,77 @@ fn sample_file_report_json() -> serde_json::Value {
     })
 }
 
+fn sample_pull_comparison_json() -> serde_json::Value {
+    let totals = json!({
+        "files": 1,
+        "lines": 3,
+        "hits": 1,
+        "misses": 1,
+        "partials": 1,
+        "coverage": 50.0,
+        "branches": 0,
+        "methods": 0
+    });
+    json!({
+        "base_commit": "base-sha",
+        "head_commit": "head-sha",
+        "totals": {
+            "base": totals,
+            "head": totals,
+            "patch": totals
+        },
+        "files": [{
+            "name": {
+                "base": "src/lib.rs",
+                "head": "src/lib.rs"
+            },
+            "totals": {
+                "base": totals,
+                "head": totals,
+                "patch": totals
+            },
+            "lines": [
+                {
+                    "value": "+fn missed() {}",
+                    "number": { "base": null, "head": 20 },
+                    "coverage": { "base": null, "head": 1 },
+                    "is_diff": true,
+                    "added": true,
+                    "removed": false,
+                    "sessions": 0
+                },
+                {
+                    "value": "+fn partial() {}",
+                    "number": { "base": null, "head": 21 },
+                    "coverage": { "base": null, "head": 2 },
+                    "is_diff": true,
+                    "added": true,
+                    "removed": false,
+                    "sessions": 1
+                },
+                {
+                    "value": "+fn unmeasured() {}",
+                    "number": { "base": null, "head": 22 },
+                    "coverage": { "base": null, "head": null },
+                    "is_diff": true,
+                    "added": true,
+                    "removed": false,
+                    "sessions": null
+                },
+                {
+                    "value": "+fn covered() {}",
+                    "number": { "base": null, "head": 23 },
+                    "coverage": { "base": null, "head": 0 },
+                    "is_diff": true,
+                    "added": true,
+                    "removed": false,
+                    "sessions": 1
+                }
+            ]
+        }]
+    })
+}
+
 #[tokio::test]
 async fn codecov_totals_hits_totals_endpoint() {
     let server = MockServer::start().await;
@@ -162,4 +233,35 @@ async fn codecov_file_report_omits_trailing_slash_on_path() {
         !path.ends_with("parser.rs/"),
         "trailing slash after file path must not be requested: {path}"
     );
+}
+
+#[tokio::test]
+async fn codecov_pr_report_returns_patch_totals_and_uncovered_added_lines() {
+    let server = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path("/github/Interchouette-ITC/repos/rangular/compare/"))
+        .and(query_param("pullid", "97"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(sample_pull_comparison_json()))
+        .expect(1)
+        .mount(&server)
+        .await;
+
+    let client = CodecovClient::new("tok", server.uri());
+    let report = client
+        .pull_report("Interchouette-ITC", "rangular", 97)
+        .await
+        .expect("PR report");
+
+    assert_eq!(report.pull_id, 97);
+    assert_eq!(report.base_commit, "base-sha");
+    assert_eq!(report.head_commit, "head-sha");
+    assert_eq!(report.patch.coverage, Some(json!(50.0)));
+    assert_eq!(report.files[0].path, "src/lib.rs");
+    assert_eq!(report.files[0].missed_lines[0].line, 20);
+    assert_eq!(report.files[0].missed_lines[0].code, "fn missed() {}");
+    assert_eq!(report.files[0].partial_lines[0].line, 21);
+    assert_eq!(report.files[0].unmeasured_added_lines, 1);
+    assert_eq!(report.missed_lines_reported, 1);
+    assert_eq!(report.missed_lines_returned, 1);
+    assert!(report.line_details_complete);
 }

@@ -61,6 +61,192 @@ pub struct MissFilesResult {
     pub returned: usize,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct PullComparison {
+    pub base_commit: String,
+    pub head_commit: String,
+    pub totals: PullComparisonTotals,
+    #[serde(default)]
+    pub files: Vec<PullComparisonFile>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PullComparisonTotals {
+    pub base: ReportTotals,
+    pub head: ReportTotals,
+    pub patch: ReportTotals,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PullComparisonFile {
+    pub name: ComparisonFileName,
+    pub totals: PullComparisonTotals,
+    #[serde(default)]
+    pub lines: Vec<PullComparisonLine>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum ComparisonFileName {
+    Path(String),
+    Versions {
+        #[serde(default)]
+        base: Option<String>,
+        #[serde(default)]
+        head: Option<String>,
+    },
+}
+
+impl ComparisonFileName {
+    fn path(&self) -> Option<&str> {
+        match self {
+            Self::Path(path) => Some(path),
+            Self::Versions { base, head } => head.as_deref().or(base.as_deref()),
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PullComparisonLine {
+    pub value: String,
+    pub number: ComparisonLineNumbers,
+    pub coverage: ComparisonLineCoverage,
+    pub added: bool,
+    pub removed: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComparisonLineNumbers {
+    #[serde(default)]
+    pub base: Option<i64>,
+    #[serde(default)]
+    pub head: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ComparisonLineCoverage {
+    #[serde(default)]
+    pub base: Option<i64>,
+    #[serde(default)]
+    pub head: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PullCoverageReport {
+    pub pull_id: u64,
+    pub base_commit: String,
+    pub head_commit: String,
+    pub patch: ReportTotals,
+    pub files: Vec<PullCoverageFile>,
+    pub missed_lines_reported: i64,
+    pub missed_lines_returned: usize,
+    pub line_details_complete: bool,
+    pub line_coverage_legend: &'static str,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PullCoverageFile {
+    pub path: String,
+    pub patch: ReportTotals,
+    pub missed_lines: Vec<PullCoverageLine>,
+    pub partial_lines: Vec<PullCoverageLine>,
+    pub unmeasured_added_lines: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PullCoverageLine {
+    pub line: i64,
+    pub code: String,
+}
+
+/// Converts Codecov's pull comparison to an agent-oriented patch report.
+///
+/// # Errors
+///
+/// Returns an error when Codecov's comparison omits required file paths or line numbers,
+/// or uses an unknown line coverage status.
+pub fn pull_coverage_report(
+    pull_id: u64,
+    comparison: PullComparison,
+) -> Result<PullCoverageReport, String> {
+    let mut files = Vec::with_capacity(comparison.files.len());
+    let mut missed_lines_returned = 0_usize;
+    let mut partial_lines_returned = 0_i64;
+
+    for file in comparison.files {
+        let path = file
+            .name
+            .path()
+            .filter(|path| !path.is_empty())
+            .ok_or_else(|| "Codecov comparison returned a file without a path".to_string())?
+            .to_string();
+        let mut missed_lines = Vec::new();
+        let mut partial_lines = Vec::new();
+        let mut unmeasured_added_lines = 0;
+
+        for line in file
+            .lines
+            .into_iter()
+            .filter(|line| line.added && !line.removed)
+        {
+            let number = line
+                .number
+                .head
+                .ok_or_else(|| format!("Codecov comparison returned an added line without a head line number in {path}"))?;
+            let code = line
+                .value
+                .strip_prefix('+')
+                .unwrap_or(&line.value)
+                .to_string();
+            match line.coverage.head {
+                Some(0) => {}
+                Some(1) => missed_lines.push(PullCoverageLine { line: number, code }),
+                Some(2) => partial_lines.push(PullCoverageLine { line: number, code }),
+                None => unmeasured_added_lines += 1,
+                Some(status) => {
+                    return Err(format!(
+                        "Codecov comparison returned unknown line coverage status {status} in {path}:{number}"
+                    ));
+                }
+            }
+        }
+
+        missed_lines_returned += missed_lines.len();
+        partial_lines_returned += i64::try_from(partial_lines.len()).unwrap_or(i64::MAX);
+        files.push(PullCoverageFile {
+            path,
+            patch: file.totals.patch,
+            missed_lines,
+            partial_lines,
+            unmeasured_added_lines,
+        });
+    }
+    files.sort_by(|left, right| {
+        right
+            .patch
+            .misses
+            .cmp(&left.patch.misses)
+            .then_with(|| left.path.cmp(&right.path))
+    });
+
+    let line_details_complete = i64::try_from(missed_lines_returned)
+        .is_ok_and(|count| count == comparison.totals.patch.misses)
+        && partial_lines_returned == comparison.totals.patch.partials;
+    let missed_lines_reported = comparison.totals.patch.misses;
+
+    Ok(PullCoverageReport {
+        pull_id,
+        base_commit: comparison.base_commit,
+        head_commit: comparison.head_commit,
+        patch: comparison.totals.patch,
+        files,
+        missed_lines_reported,
+        missed_lines_returned,
+        line_details_complete,
+        line_coverage_legend: "For changed lines: coverage 0 is covered, 1 is missed, 2 is partial. Unmeasured added lines have no numeric coverage value and are not counted as misses.",
+    })
+}
+
 /// Files with `misses > 0`, sorted by misses descending.
 ///
 /// When `limit` is `0`, no truncate is applied. Otherwise the list is capped to `limit`.
