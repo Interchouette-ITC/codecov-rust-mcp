@@ -5,7 +5,7 @@
   <a href="https://codecov.io/gh/Interchouette-ITC/codecov-rust-mcp"><img src="https://codecov.io/gh/Interchouette-ITC/codecov-rust-mcp/branch/dev/graph/badge.svg" alt="codecov" /></a>
 </p>
 
-MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio** or **Streamable HTTP**. Exposes three read tools so agents can check coverage totals, list files with misses, and inspect a single file report.
+MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio** or **Streamable HTTP**. Agents can inspect PR patch coverage, find exact missed changed lines, check commit totals, and fetch per-file line reports.
 
 Canonical repo: [Interchouette-ITC/codecov-rust-mcp](https://github.com/Interchouette-ITC/codecov-rust-mcp).
 
@@ -28,9 +28,10 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 
 | Tool                  | Purpose                                                                                                         |
 | --------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `codecov_totals`      | Commit coverage totals for a GitHub `owner` / `repo` (optional `branch` or `sha`)                               |
-| `codecov_miss_files`  | Commit `totals` + files with `misses > 0` (sorted desc) + `returned` count (`limit` default 30; `0` = uncapped) |
-| `codecov_file_report` | Line coverage for one repository-relative `path`                                                                |
+| `codecov_pr_report`   | PR patch totals plus missed/partial added lines (provide owner, repo, and PR number)                            |
+| `codecov_totals`      | Whole-commit coverage totals for a GitHub `owner` / `repo` (optional `branch` or `sha`)                          |
+| `codecov_miss_files`  | Whole-commit files with misses, sorted descending (`limit` default 30; `0` = uncapped)                            |
+| `codecov_file_report` | Whole-file line coverage for one repository-relative `path`                                                     |
 
 ## Quick start
 

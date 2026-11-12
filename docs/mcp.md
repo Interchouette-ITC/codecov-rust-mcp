@@ -1,6 +1,6 @@
 # codecov-rust-mcp
 
-MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents use three read tools to inspect coverage totals, list files with misses, and fetch a single file report.
+MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents can inspect a pull request's patch coverage, coverage totals, missed files, and per-file line reports.
 
 Service is fixed to GitHub (`github` in the Codecov API path).
 
@@ -8,11 +8,35 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 
 | Tool                  | Parameters                                                           | Purpose                                                                                                                     |
 | --------------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `codecov_totals`      | `owner`, `repo`, optional `branch`, optional `sha`                   | Commit coverage totals for a GitHub owner/repo                                                                              |
-| `codecov_miss_files`  | `owner`, `repo`, optional `branch`, optional `sha`, optional `limit` | Commit `totals` plus files with `misses > 0` (sorted descending) and `returned` count. `limit` default `30`; `0` = uncapped |
-| `codecov_file_report` | `owner`, `repo`, `path`, optional `branch`, optional `sha`           | Line coverage for one repository-relative file path                                                                         |
+| `codecov_pr_report`   | `owner`, `repo`, `pull_id`                                           | PR patch totals and exact missed/partial added lines, queried directly from Codecov                                         |
+| `codecov_totals`      | `owner`, `repo`, optional `branch`, optional `sha`                   | Whole-commit coverage totals                                                                                                |
+| `codecov_miss_files`  | `owner`, `repo`, optional `branch`, optional `sha`, optional `limit` | Whole-commit totals plus files with misses, sorted descending; `limit` default `30`; `0` = uncapped                         |
+| `codecov_file_report` | `owner`, `repo`, `path`, optional `branch`, optional `sha`            | Whole-file line coverage for one repository-relative path                                                                   |
 
 When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on the API query string.
+
+## Get PR coverage directly from Codecov
+
+When given a PR URL, extract its owner, repository, and PR number and call
+`codecov_pr_report`. For example, for
+`https://github.com/Interchouette-ITC/rangular/pull/97`, use
+`owner="Interchouette-ITC"`, `repo="rangular"`, and `pull_id=97`. The tool calls
+Codecov's [pull comparison endpoint](https://docs.codecov.com/reference/repos_compare_retrieve.md)
+with that PR number; it does not fetch from GitHub or require resolving the head SHA.
+It returns Codecov's authoritative patch coverage totals plus per-file added lines
+that are missed or partially covered, including line numbers and source text. Use
+those lines to identify where tests need to be added or expanded.
+
+For `codecov_pr_report`, `missed_lines_reported` and `patch.misses` are Codecov's
+patch-miss totals; the returned per-line details should match, and
+`line_details_complete` says whether they do. A coverage status of `0` means
+covered, `1` missed, and `2` partially covered; null means unmeasured and must not
+be called a miss. Removed lines are excluded from new-code findings.
+
+The other tools are commit/file reports, not patch reports. In their
+`line_coverage` pairs, `[line_number, 0]` means covered, `[line_number, 1]` missed,
+and `[line_number, 2]` partial; the value is a status, not a hit count. Do not
+substitute whole-file or whole-commit misses for PR patch misses.
 
 ## Auth
 

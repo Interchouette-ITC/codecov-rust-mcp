@@ -7,11 +7,12 @@ agents and IDEs can read coverage without scraping HTML or parsing local
 
 ## What it does
 
-| Tool                  | Role                                                 |
-| --------------------- | ---------------------------------------------------- |
-| `codecov_totals`      | Commit coverage totals for a GitHub `owner` / `repo` |
-| `codecov_miss_files`  | Files with missed lines, sorted by misses            |
-| `codecov_file_report` | Line coverage for one repository-relative path       |
+| Tool                  | Role                                                             |
+| --------------------- | ---------------------------------------------------------------- |
+| `codecov_pr_report`   | PR patch totals and exact missed/partial added lines from Codecov |
+| `codecov_totals`      | Whole-commit coverage totals for a GitHub `owner` / `repo`       |
+| `codecov_miss_files`  | Whole-commit files with missed lines, sorted by misses           |
+| `codecov_file_report` | Whole-file line coverage for one repository-relative path        |
 
 Service is fixed to GitHub (`github` in the Codecov API path). Auth is a Codecov
 **Access** bearer token (`CODECOV_TOKEN`).
