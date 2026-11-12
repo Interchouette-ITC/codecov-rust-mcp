@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"struct":["FileReportArgs","MissFilesArgs","RepoArgs"]};
+window.SIDEBAR_ITEMS = {"struct":["FileReportArgs","MissFilesArgs","PullReportArgs","RepoArgs"]};

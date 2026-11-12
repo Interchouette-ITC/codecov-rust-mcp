@@ -1,1 +1,1 @@
-window.SIDEBAR_ITEMS = {"fn":["miss_files_from_report","miss_files_result"],"struct":["CoverageReport","MissFile","MissFilesResult","ReportFile","ReportTotals"]};
+window.SIDEBAR_ITEMS = {"enum":["ComparisonFileName"],"fn":["miss_files_from_report","miss_files_result","pull_coverage_report"],"struct":["ComparisonLineCoverage","ComparisonLineNumbers","CoverageReport","MissFile","MissFilesResult","PullComparison","PullComparisonFile","PullComparisonLine","PullComparisonTotals","PullCoverageFile","PullCoverageLine","PullCoverageReport","ReportFile","ReportTotals"]};
