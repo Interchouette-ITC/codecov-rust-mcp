@@ -408,6 +408,13 @@ mod tests {
         let json_err = ClientError::from(serde_json::from_str::<()>("x").unwrap_err());
         assert!(json_err.to_string().contains("JSON error"));
         assert!(json_err.source().is_some());
+
+        let report = ClientError::Report("missing line number".into());
+        assert_eq!(
+            report.to_string(),
+            "Codecov comparison report error: missing line number"
+        );
+        assert!(report.source().is_none());
     }
 
     #[tokio::test]

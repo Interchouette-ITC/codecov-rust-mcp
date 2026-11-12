@@ -288,6 +288,155 @@ mod tests {
     use super::*;
     use serde_json::json;
 
+    fn pull_comparison(files: &serde_json::Value, misses: i64, partials: i64) -> PullComparison {
+        let totals = json!({
+            "files": 0,
+            "lines": 0,
+            "hits": 0,
+            "misses": misses,
+            "partials": partials,
+            "coverage": 0.0,
+            "branches": 0,
+            "methods": 0
+        });
+        serde_json::from_value(json!({
+            "base_commit": "base",
+            "head_commit": "head",
+            "totals": {
+                "base": totals,
+                "head": totals,
+                "patch": totals
+            },
+            "files": files
+        }))
+        .expect("valid pull comparison fixture")
+    }
+
+    fn comparison_file(name: &serde_json::Value, lines: &serde_json::Value) -> serde_json::Value {
+        let totals = json!({
+            "files": 0,
+            "lines": 0,
+            "hits": 0,
+            "misses": 0,
+            "partials": 0,
+            "coverage": 0.0,
+            "branches": 0,
+            "methods": 0
+        });
+        json!({
+            "name": name,
+            "totals": {
+                "base": totals,
+                "head": totals,
+                "patch": totals
+            },
+            "lines": lines
+        })
+    }
+
+    fn added_line(number: Option<i64>, status: Option<i64>) -> serde_json::Value {
+        json!({
+            "value": "+test line",
+            "number": { "base": null, "head": number },
+            "coverage": { "base": null, "head": status },
+            "added": true,
+            "removed": false
+        })
+    }
+
+    #[test]
+    fn pull_report_collects_added_line_statuses_and_sorts_files() {
+        let comparison = pull_comparison(
+            &json!([
+                comparison_file(
+                    &json!({ "base": "z.rs", "head": null }),
+                    &json!([
+                        added_line(Some(10), Some(1)),
+                        added_line(Some(11), Some(2)),
+                        added_line(Some(12), None),
+                        added_line(Some(13), Some(0)),
+                        {
+                            "value": "-removed line",
+                            "number": { "base": 14, "head": null },
+                            "coverage": { "base": 1, "head": null },
+                            "added": false,
+                            "removed": true
+                        }
+                    ])
+                ),
+                comparison_file(&json!("a.rs"), &json!([added_line(Some(20), Some(1))]))
+            ]),
+            2,
+            1,
+        );
+
+        let report = pull_coverage_report(97, comparison).expect("report");
+        assert_eq!(report.files[0].path, "a.rs");
+        assert_eq!(report.files[1].path, "z.rs");
+        assert_eq!(report.files[1].missed_lines[0].line, 10);
+        assert_eq!(report.files[1].partial_lines[0].line, 11);
+        assert_eq!(report.files[1].unmeasured_added_lines, 1);
+        assert_eq!(report.missed_lines_reported, 2);
+        assert_eq!(report.missed_lines_returned, 2);
+        assert!(report.line_details_complete);
+    }
+
+    #[test]
+    fn pull_report_rejects_missing_paths_and_line_numbers() {
+        let missing_path = pull_comparison(
+            &json!([comparison_file(
+                &json!({ "base": null, "head": null }),
+                &json!([])
+            )]),
+            0,
+            0,
+        );
+        assert!(pull_coverage_report(1, missing_path)
+            .expect_err("missing path")
+            .contains("without a path"));
+
+        let missing_line = pull_comparison(
+            &json!([comparison_file(
+                &json!("src/lib.rs"),
+                &json!([added_line(None, Some(1))])
+            )]),
+            1,
+            0,
+        );
+        assert!(pull_coverage_report(1, missing_line)
+            .expect_err("missing line number")
+            .contains("without a head line number"));
+    }
+
+    #[test]
+    fn pull_report_rejects_unknown_coverage_status_and_flags_incomplete_details() {
+        let unknown_status = pull_comparison(
+            &json!([comparison_file(
+                &json!("src/lib.rs"),
+                &json!([added_line(Some(10), Some(3))])
+            )]),
+            0,
+            0,
+        );
+        assert!(pull_coverage_report(1, unknown_status)
+            .expect_err("unknown status")
+            .contains("unknown line coverage status 3"));
+
+        let incomplete = pull_comparison(
+            &json!([comparison_file(
+                &json!("src/lib.rs"),
+                &json!([added_line(Some(10), Some(1))])
+            )]),
+            2,
+            1,
+        );
+        assert!(
+            !pull_coverage_report(1, incomplete)
+                .expect("incomplete report")
+                .line_details_complete
+        );
+    }
+
     fn file(name: &str, misses: i64) -> ReportFile {
         ReportFile {
             name: name.to_string(),

@@ -475,6 +475,16 @@ mod tests {
         )
         .await
         .is_err());
+        assert!(pull_report_with_client(
+            &client,
+            PullReportArgs {
+                owner: "o".into(),
+                repo: "r".into(),
+                pull_id: 97,
+            },
+        )
+        .await
+        .is_err());
     }
 
     #[tokio::test]
