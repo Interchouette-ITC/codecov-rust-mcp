@@ -32,7 +32,9 @@ patch-miss totals; the returned per-line details should match, and
 `line_details_complete` says whether they do. When Codecov has no patch totals
 yet (for example the head report is still processing), `patch` and
 `missed_lines_reported` are null (unknown, not zero) and `line_details_complete`
-is false. A coverage status of `0` means
+is false. Totals that Codecov omits are treated the same as null. Files are
+sorted by known patch misses, highest first; files with unknown patch totals come
+after all files with known totals, and paths break ties. A coverage status of `0` means
 covered, `1` missed, and `2` partially covered; null means unmeasured and must not
 be called a miss. Removed lines are excluded from new-code findings.
 
