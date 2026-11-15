@@ -65,6 +65,7 @@ pub struct MissFilesResult {
 pub struct PullComparison {
     pub base_commit: String,
     pub head_commit: String,
+    #[serde(default)]
     pub totals: PullComparisonTotals,
     #[serde(default)]
     pub files: Vec<PullComparisonFile>,
@@ -72,7 +73,8 @@ pub struct PullComparison {
 
 /// Codecov sends `null` totals for sides without data (for example a head
 /// report that is not processed yet); `None` keeps that distinct from zero.
-#[derive(Debug, Deserialize)]
+/// Omitted sides, or an omitted `totals` object, are unknown as well.
+#[derive(Debug, Default, Deserialize)]
 pub struct PullComparisonTotals {
     #[serde(default)]
     pub base: Option<ReportTotals>,
@@ -85,6 +87,7 @@ pub struct PullComparisonTotals {
 #[derive(Debug, Deserialize)]
 pub struct PullComparisonFile {
     pub name: ComparisonFileName,
+    #[serde(default)]
     pub totals: PullComparisonTotals,
     #[serde(default)]
     pub lines: Vec<PullComparisonLine>,
@@ -318,6 +321,27 @@ mod tests {
         let report = pull_coverage_report(335, comparison).expect("report");
         assert!(report.files[0].patch.is_none());
         assert_eq!(report.missed_lines_reported, Some(1));
+        assert!(!report.line_details_complete);
+    }
+
+    #[test]
+    fn pull_comparison_treats_omitted_totals_objects_as_unknown() {
+        let comparison: PullComparison = serde_json::from_value(json!({
+            "base_commit": "base",
+            "head_commit": "head",
+            "files": [{ "name": "a.rs", "lines": [added_line(Some(4), Some(1))] }]
+        }))
+        .expect("omitted totals objects deserialize");
+        let totals = &comparison.totals;
+        assert!(totals.base.is_none() && totals.head.is_none() && totals.patch.is_none());
+        let file = &comparison.files[0].totals;
+        assert!(file.base.is_none() && file.head.is_none() && file.patch.is_none());
+
+        let report = pull_coverage_report(335, comparison).expect("report");
+        assert!(report.patch.is_none());
+        assert!(report.files[0].patch.is_none());
+        assert_eq!(report.files[0].missed_lines[0].line, 4);
+        assert_eq!(report.missed_lines_reported, None);
         assert!(!report.line_details_complete);
     }
 
