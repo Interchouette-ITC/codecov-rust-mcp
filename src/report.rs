@@ -71,9 +71,11 @@ pub struct PullComparison {
     pub files: Vec<PullComparisonFile>,
 }
 
+/// Pull comparison totals; `None` means unknown, not zero.
+///
 /// Codecov sends `null` totals for sides without data (for example a head
-/// report that is not processed yet); `None` keeps that distinct from zero.
-/// Omitted sides, or an omitted `totals` object, are unknown as well.
+/// report that is not processed yet). Omitted sides, or an omitted `totals`
+/// object, are unknown as well.
 #[derive(Debug, Default, Deserialize)]
 pub struct PullComparisonTotals {
     #[serde(default)]
