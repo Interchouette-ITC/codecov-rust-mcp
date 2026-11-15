@@ -255,13 +255,19 @@ async fn codecov_pr_report_returns_patch_totals_and_uncovered_added_lines() {
     assert_eq!(report.pull_id, 97);
     assert_eq!(report.base_commit, "base-sha");
     assert_eq!(report.head_commit, "head-sha");
-    assert_eq!(report.patch.coverage, Some(json!(50.0)));
+    assert_eq!(
+        report
+            .patch
+            .as_ref()
+            .and_then(|patch| patch.coverage.clone()),
+        Some(json!(50.0))
+    );
     assert_eq!(report.files[0].path, "src/lib.rs");
     assert_eq!(report.files[0].missed_lines[0].line, 20);
     assert_eq!(report.files[0].missed_lines[0].code, "fn missed() {}");
     assert_eq!(report.files[0].partial_lines[0].line, 21);
     assert_eq!(report.files[0].unmeasured_added_lines, 1);
-    assert_eq!(report.missed_lines_reported, 1);
+    assert_eq!(report.missed_lines_reported, Some(1));
     assert_eq!(report.missed_lines_returned, 1);
     assert!(report.line_details_complete);
 }

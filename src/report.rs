@@ -70,11 +70,16 @@ pub struct PullComparison {
     pub files: Vec<PullComparisonFile>,
 }
 
+/// Codecov sends `null` totals for sides without data (for example a head
+/// report that is not processed yet); `None` keeps that distinct from zero.
 #[derive(Debug, Deserialize)]
 pub struct PullComparisonTotals {
-    pub base: ReportTotals,
-    pub head: ReportTotals,
-    pub patch: ReportTotals,
+    #[serde(default)]
+    pub base: Option<ReportTotals>,
+    #[serde(default)]
+    pub head: Option<ReportTotals>,
+    #[serde(default)]
+    pub patch: Option<ReportTotals>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -136,9 +141,9 @@ pub struct PullCoverageReport {
     pub pull_id: u64,
     pub base_commit: String,
     pub head_commit: String,
-    pub patch: ReportTotals,
+    pub patch: Option<ReportTotals>,
     pub files: Vec<PullCoverageFile>,
-    pub missed_lines_reported: i64,
+    pub missed_lines_reported: Option<i64>,
     pub missed_lines_returned: usize,
     pub line_details_complete: bool,
     pub line_coverage_legend: &'static str,
@@ -147,7 +152,7 @@ pub struct PullCoverageReport {
 #[derive(Debug, Clone, Serialize)]
 pub struct PullCoverageFile {
     pub path: String,
-    pub patch: ReportTotals,
+    pub patch: Option<ReportTotals>,
     pub missed_lines: Vec<PullCoverageLine>,
     pub partial_lines: Vec<PullCoverageLine>,
     pub unmeasured_added_lines: usize,
@@ -221,24 +226,25 @@ pub fn pull_coverage_report(
             unmeasured_added_lines,
         });
     }
+    let patch_misses = |file: &PullCoverageFile| file.patch.as_ref().map(|patch| patch.misses);
     files.sort_by(|left, right| {
-        right
-            .patch
-            .misses
-            .cmp(&left.patch.misses)
+        patch_misses(right)
+            .cmp(&patch_misses(left))
             .then_with(|| left.path.cmp(&right.path))
     });
 
-    let line_details_complete = i64::try_from(missed_lines_returned)
-        .is_ok_and(|count| count == comparison.totals.patch.misses)
-        && partial_lines_returned == comparison.totals.patch.partials;
-    let missed_lines_reported = comparison.totals.patch.misses;
+    let patch = comparison.totals.patch;
+    let line_details_complete = patch.as_ref().is_some_and(|patch| {
+        i64::try_from(missed_lines_returned).is_ok_and(|count| count == patch.misses)
+            && partial_lines_returned == patch.partials
+    });
+    let missed_lines_reported = patch.as_ref().map(|patch| patch.misses);
 
     Ok(PullCoverageReport {
         pull_id,
         base_commit: comparison.base_commit,
         head_commit: comparison.head_commit,
-        patch: comparison.totals.patch,
+        patch,
         files,
         missed_lines_reported,
         missed_lines_returned,
@@ -287,6 +293,58 @@ pub fn miss_files_result(report: &CoverageReport, limit: usize) -> MissFilesResu
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn pull_comparison_accepts_null_totals() {
+        let comparison: PullComparison = serde_json::from_value(json!({
+            "base_commit": "base",
+            "head_commit": "head",
+            "totals": { "base": null, "head": { "misses": 1 }, "patch": { "misses": 1 } },
+            "files": [{
+                "name": { "base": "src/a.rs", "head": "src/a.rs" },
+                "totals": { "base": null, "head": null, "patch": null },
+                "lines": []
+            }]
+        }))
+        .expect("null totals deserialize");
+        assert!(comparison.totals.base.is_none());
+        assert_eq!(comparison.totals.patch.as_ref().map(|t| t.misses), Some(1));
+        assert!(comparison.files[0].totals.patch.is_none());
+
+        let report = pull_coverage_report(335, comparison).expect("report");
+        assert!(report.files[0].patch.is_none());
+        assert_eq!(report.missed_lines_reported, Some(1));
+        assert!(!report.line_details_complete);
+    }
+
+    #[test]
+    fn pull_report_keeps_missing_patch_totals_unknown() {
+        let comparison: PullComparison = serde_json::from_value(json!({
+            "base_commit": "base",
+            "head_commit": "head",
+            "totals": { "base": null, "head": null, "patch": null },
+            "files": [
+                {
+                    "name": "b.rs",
+                    "totals": { "patch": { "misses": 1 } },
+                    "lines": [added_line(Some(3), Some(1))]
+                },
+                { "name": "a.rs", "totals": { "patch": null }, "lines": [] }
+            ]
+        }))
+        .expect("null totals deserialize");
+
+        let report = pull_coverage_report(335, comparison).expect("report");
+        assert!(report.patch.is_none());
+        assert_eq!(report.missed_lines_reported, None);
+        assert_eq!(report.missed_lines_returned, 1);
+        assert!(!report.line_details_complete);
+        assert_eq!(report.files[0].path, "b.rs");
+        assert!(report.files[1].patch.is_none());
+        let json = serde_json::to_value(&report).expect("serialize report");
+        assert!(json["patch"].is_null());
+        assert!(json["missed_lines_reported"].is_null());
+    }
 
     fn pull_comparison(files: &serde_json::Value, misses: i64, partials: i64) -> PullComparison {
         let totals = json!({
@@ -376,7 +434,7 @@ mod tests {
         assert_eq!(report.files[1].missed_lines[0].line, 10);
         assert_eq!(report.files[1].partial_lines[0].line, 11);
         assert_eq!(report.files[1].unmeasured_added_lines, 1);
-        assert_eq!(report.missed_lines_reported, 2);
+        assert_eq!(report.missed_lines_reported, Some(2));
         assert_eq!(report.missed_lines_returned, 2);
         assert!(report.line_details_complete);
     }
