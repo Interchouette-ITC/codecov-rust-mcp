@@ -149,7 +149,7 @@ async fn codecov_totals_hits_totals_endpoint() {
         .mount(&server)
         .await;
 
-    let client = CodecovClient::new("tok", server.uri());
+    let client = CodecovClient::new("tok", server.uri()).expect("client");
     let report = client
         .totals("Interchouette-ITC", "rangular", Some("dev"), None)
         .await
@@ -169,7 +169,7 @@ async fn codecov_miss_files_filters_sorted_misses() {
         .mount(&server)
         .await;
 
-    let client = CodecovClient::new("tok", server.uri());
+    let client = CodecovClient::new("tok", server.uri()).expect("client");
     let misses = client
         .miss_files("Interchouette-ITC", "rangular", Some("dev"), None, 10)
         .await
@@ -207,7 +207,7 @@ async fn codecov_file_report_omits_trailing_slash_on_path() {
         .mount(&server)
         .await;
 
-    let client = CodecovClient::new("tok", server.uri());
+    let client = CodecovClient::new("tok", server.uri()).expect("client");
     let file = client
         .file_report(
             "Interchouette-ITC",
@@ -246,7 +246,7 @@ async fn codecov_pr_report_returns_patch_totals_and_uncovered_added_lines() {
         .mount(&server)
         .await;
 
-    let client = CodecovClient::new("tok", server.uri());
+    let client = CodecovClient::new("tok", server.uri()).expect("client");
     let report = client
         .pull_report("Interchouette-ITC", "rangular", 97)
         .await

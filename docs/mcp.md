@@ -1,6 +1,6 @@
 # codecov-rust-mcp
 
-MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents can inspect a pull request's patch coverage, coverage totals, missed files, and per-file line reports.
+MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio** or **Streamable HTTP**. Agents can inspect a pull request's patch coverage, coverage totals, missed files, and per-file line reports.
 
 Service is fixed to GitHub (`github` in the Codecov API path).
 
@@ -14,6 +14,15 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 | `codecov_file_report` | `owner`, `repo`, `path`, optional `branch`, optional `sha`            | Whole-file line coverage for one repository-relative path                                                                   |
 
 When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on the API query string.
+
+The tool schemas and runtime validation require `owner`, `repo`, and supplied
+`branch`/`sha` strings to contain at least one non-whitespace character, using
+Unicode whitespace rules. Optional selectors may be omitted or null; surrounding
+whitespace on nonempty values is not stripped.
+
+For `codecov_miss_files`, the complete totals report is fetched from Codecov before filtering. `limit` caps only the files returned to the MCP client; `0` remains uncapped and can produce a large result.
+
+File-report paths must be slash-delimited repository-relative paths. Absolute paths, empty path components, `.`/`..` components, backslashes, and control characters are rejected.
 
 ## Get PR coverage directly from Codecov
 
@@ -41,12 +50,15 @@ be called a miss. Removed lines are excluded from new-code findings.
 
 The other tools are commit/file reports, not patch reports. In their
 `line_coverage` pairs, `[line_number, 0]` means covered, `[line_number, 1]` missed,
-and `[line_number, 2]` partial; the value is a status, not a hit count. Do not
-substitute whole-file or whole-commit misses for PR patch misses.
+`[line_number, 2]` partial, and `[line_number, null]` unmeasured; numeric values
+are statuses, not hit counts. Do not substitute whole-file or whole-commit misses
+for PR patch misses.
 
 ## Auth
 
 Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
+
+`CODECOV_TOKEN` must use Bearer credential syntax: ASCII letters/digits and `-._~+/`, optionally followed by `=` padding. Whitespace and embedded padding are rejected.
 
 | Requirement  | Detail                                                       |
 | ------------ | ------------------------------------------------------------ |
@@ -55,6 +67,14 @@ Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov
 | Not used     | OAuth, GitHub login, or other Codecov account flows          |
 
 Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process can still start (useful for transport smoke tests).
+
+## HTTP safeguards
+
+Codecov requests use a 10-second connection timeout and a 30-second total request timeout. Success and error response bodies are capped at 10 MiB; larger responses return an explicit error.
+
+## Tool errors
+
+Invalid arguments use JSON-RPC `-32602`. Codecov configuration, authentication, permission, rate-limit, transport, and other upstream failures use distinct server-defined error codes (`-32010` through `-32015`).
 
 ## Environment
 
