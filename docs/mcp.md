@@ -45,8 +45,9 @@ be called a miss. Removed lines are excluded from new-code findings.
 
 The other tools are commit/file reports, not patch reports. In their
 `line_coverage` pairs, `[line_number, 0]` means covered, `[line_number, 1]` missed,
-and `[line_number, 2]` partial; the value is a status, not a hit count. Do not
-substitute whole-file or whole-commit misses for PR patch misses.
+`[line_number, 2]` partial, and `[line_number, null]` unmeasured; numeric values
+are statuses, not hit counts. Do not substitute whole-file or whole-commit misses
+for PR patch misses.
 
 ## Auth
 

@@ -3,6 +3,8 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+const REPOSITORY_PATH_PATTERN: &str = r"^(?!/)(?![A-Za-z]:/)(?!.*\\)(?!.*[\x00-\x1F\x7F-\x9F])(?!\s*$)(?:(?!\.{1,2}(?:/|$))[^/]+)(?:/(?!\.{1,2}(?:/|$))[^/]+)*$";
+
 /// Shared owner/repo/branch/sha selectors for Codecov repo tools.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RepoArgs {
@@ -85,8 +87,9 @@ pub struct FileReportArgs {
     /// Repository name.
     #[schemars(length(min = 1))]
     pub repo: String,
-    /// Slash-delimited repository-relative file path; dot segments and control characters are rejected.
+    /// Slash-delimited repository-relative path; absolute paths, empty segments, dot segments, backslashes, and control characters are rejected.
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = REPOSITORY_PATH_PATTERN))]
     pub path: String,
     /// Branch head to query when `sha` is omitted.
     #[serde(default)]
@@ -103,7 +106,7 @@ impl FileReportArgs {
     ///
     /// # Errors
     ///
-    /// Returns an error when a required selector is empty or whitespace-only.
+    /// Returns an error when a required selector is empty or whitespace-only, or the path is not repository-relative.
     pub fn validate(&self) -> Result<(), String> {
         validate_repo_fields(
             &self.owner,
@@ -264,6 +267,7 @@ mod tests {
             "src/file.rs/",
             r"src\file.rs",
             "src/\nfile.rs",
+            " ",
         ] {
             assert!(
                 args(path).validate().is_err(),
@@ -285,5 +289,13 @@ mod tests {
         let pull_schema = serde_json::to_value(schemars::schema_for!(PullReportArgs))
             .expect("serialize pull args schema");
         assert_eq!(pull_schema["properties"]["pull_id"]["minimum"], 1);
+
+        let file_schema = serde_json::to_value(schemars::schema_for!(FileReportArgs))
+            .expect("serialize file args schema");
+        assert_eq!(file_schema["properties"]["path"]["minLength"], 1);
+        assert_eq!(
+            file_schema["properties"]["path"]["pattern"],
+            REPOSITORY_PATH_PATTERN
+        );
     }
 }

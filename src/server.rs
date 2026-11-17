@@ -161,7 +161,7 @@ impl CodecovMcp {
 
     /// Returns whole-file coverage; Codecov's line values are miss flags, not hit counts.
     #[tool(
-        description = "Codecov whole-file line coverage for a repository-relative path. Each line_coverage pair is [line_number, status]: 0 means covered, 1 missed, and 2 partial; the value is a status, not a hit count. File totals are not PR patch coverage."
+        description = "Codecov whole-file line coverage for a repository-relative path. Each line_coverage pair is [line_number, status]: 0 means covered, 1 missed, 2 partial, and null means unmeasured; numeric values are statuses, not hit counts. File totals are not PR patch coverage."
     )]
     async fn codecov_file_report(
         &self,

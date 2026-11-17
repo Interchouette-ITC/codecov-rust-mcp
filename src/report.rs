@@ -2,7 +2,7 @@
 
 use serde::{Deserialize, Serialize};
 
-/// Codecov's numeric coverage status for one source line.
+/// Codecov's coverage status for one source line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum LineCoverageStatus {
     /// The line is covered.
@@ -11,6 +11,8 @@ pub enum LineCoverageStatus {
     Missed,
     /// The line is partially covered.
     Partial,
+    /// Codecov did not measure the line.
+    Unmeasured,
     /// A status value not yet defined by this client.
     Unknown(i64),
 }
@@ -20,13 +22,13 @@ impl Serialize for LineCoverageStatus {
     where
         S: serde::Serializer,
     {
-        let value = match self {
-            Self::Covered => 0,
-            Self::Missed => 1,
-            Self::Partial => 2,
-            Self::Unknown(value) => *value,
-        };
-        serializer.serialize_i64(value)
+        match self {
+            Self::Covered => serializer.serialize_i64(0),
+            Self::Missed => serializer.serialize_i64(1),
+            Self::Partial => serializer.serialize_i64(2),
+            Self::Unmeasured => serializer.serialize_none(),
+            Self::Unknown(value) => serializer.serialize_i64(*value),
+        }
     }
 }
 
@@ -35,12 +37,13 @@ impl<'de> Deserialize<'de> for LineCoverageStatus {
     where
         D: serde::Deserializer<'de>,
     {
-        let value = i64::deserialize(deserializer)?;
+        let value = Option::<i64>::deserialize(deserializer)?;
         Ok(match value {
-            0 => Self::Covered,
-            1 => Self::Missed,
-            2 => Self::Partial,
-            value => Self::Unknown(value),
+            None => Self::Unmeasured,
+            Some(0) => Self::Covered,
+            Some(1) => Self::Missed,
+            Some(2) => Self::Partial,
+            Some(value) => Self::Unknown(value),
         })
     }
 }
@@ -350,10 +353,14 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn line_coverage_uses_numeric_typed_statuses() {
-        let lines: Vec<LineCoverage> =
-            serde_json::from_value(json!([[10, 0], [11, 1], [12, 2], [13, 7]]))
-                .expect("typed line coverage");
+    fn line_coverage_preserves_numeric_and_unmeasured_statuses() {
+        let report_file: ReportFile = serde_json::from_value(json!({
+            "name": "src/lib.rs",
+            "totals": {},
+            "line_coverage": [[10, 0], [11, 1], [12, 2], [13, 7], [14, null]]
+        }))
+        .expect("deserialize file report");
+        let lines = report_file.line_coverage;
         assert_eq!(
             lines,
             [
@@ -361,11 +368,12 @@ mod tests {
                 (11, LineCoverageStatus::Missed),
                 (12, LineCoverageStatus::Partial),
                 (13, LineCoverageStatus::Unknown(7)),
+                (14, LineCoverageStatus::Unmeasured),
             ]
         );
         assert_eq!(
             serde_json::to_value(lines).expect("serialize line coverage"),
-            json!([[10, 0], [11, 1], [12, 2], [13, 7]])
+            json!([[10, 0], [11, 1], [12, 2], [13, 7], [14, null]])
         );
     }
 
