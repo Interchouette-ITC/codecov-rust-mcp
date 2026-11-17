@@ -3,24 +3,31 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
-const REPOSITORY_PATH_PATTERN: &str = r"^(?!/)(?![A-Za-z]:/)(?!.*\\)(?!.*[\x00-\x1F\x7F-\x9F])(?!\s*$)(?:(?!\.{1,2}(?:/|$))[^/]+)(?:/(?!\.{1,2}(?:/|$))[^/]+)*$";
+// Spell out Unicode White_Space: ECMAScript \s differs from Rust's trim().
+const NON_WHITESPACE_PATTERN: &str =
+    r"[^\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]";
+const REPOSITORY_PATH_PATTERN: &str = r"^(?!/)(?![A-Za-z]:/)(?!.*\\)(?!.*[\x00-\x1F\x7F-\x9F])(?![\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]*$)(?:(?!\.{1,2}(?:/|$))[^/]+)(?:/(?!\.{1,2}(?:/|$))[^/]+)*$";
 
 /// Shared owner/repo/branch/sha selectors for Codecov repo tools.
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RepoArgs {
     /// GitHub owner or org (e.g. `Interchouette-ITC`).
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub owner: String,
     /// Repository name (e.g. `rustashop`).
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub repo: String,
     /// Branch head to query when `sha` is omitted.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub branch: Option<String>,
     /// Commit SHA; when set, takes precedence over `branch` on the API.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub sha: Option<String>,
 }
 
@@ -45,17 +52,21 @@ impl RepoArgs {
 pub struct MissFilesArgs {
     /// GitHub owner or org.
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub owner: String,
     /// Repository name.
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub repo: String,
     /// Branch head to query when `sha` is omitted.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub branch: Option<String>,
     /// Commit SHA.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub sha: Option<String>,
     /// Max files to return (default 30). Use `0` for uncapped; this limits output, not the Codecov report fetched.
     #[serde(default)]
@@ -83,9 +94,11 @@ impl MissFilesArgs {
 pub struct FileReportArgs {
     /// GitHub owner or org.
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub owner: String,
     /// Repository name.
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub repo: String,
     /// Slash-delimited repository-relative path; absolute paths, empty segments, dot segments, backslashes, and control characters are rejected.
     #[schemars(length(min = 1))]
@@ -94,10 +107,12 @@ pub struct FileReportArgs {
     /// Branch head to query when `sha` is omitted.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub branch: Option<String>,
     /// Commit SHA.
     #[serde(default)]
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub sha: Option<String>,
 }
 
@@ -123,9 +138,11 @@ impl FileReportArgs {
 pub struct PullReportArgs {
     /// GitHub owner or org (e.g. `Interchouette-ITC`).
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub owner: String,
     /// Repository name (e.g. `rangular`).
     #[schemars(length(min = 1))]
+    #[schemars(regex(pattern = NON_WHITESPACE_PATTERN))]
     pub repo: String,
     /// Pull request number from the PR URL (e.g. `97`).
     #[schemars(range(min = 1))]
@@ -278,12 +295,27 @@ mod tests {
 
     #[test]
     fn schemas_include_string_and_pull_id_constraints() {
-        let repo_schema = serde_json::to_value(schemars::schema_for!(RepoArgs))
-            .expect("serialize repo args schema");
-        assert_eq!(repo_schema["properties"]["owner"]["minLength"], 1);
-        assert_eq!(repo_schema["properties"]["repo"]["minLength"], 1);
-        for field in ["branch", "sha"] {
-            assert_eq!(repo_schema["properties"][field]["minLength"], 1);
+        for schema in [
+            schemars::schema_for!(RepoArgs),
+            schemars::schema_for!(MissFilesArgs),
+            schemars::schema_for!(FileReportArgs),
+            schemars::schema_for!(PullReportArgs),
+        ] {
+            let schema = serde_json::to_value(schema).expect("serialize tool args schema");
+            for field in ["owner", "repo", "branch", "sha"] {
+                let Some(property) = schema["properties"].get(field) else {
+                    continue;
+                };
+                assert_eq!(property["minLength"], 1, "{field}");
+                assert_eq!(property["pattern"], NON_WHITESPACE_PATTERN, "{field}");
+                if matches!(field, "branch" | "sha") {
+                    assert_eq!(property["type"], serde_json::json!(["string", "null"]));
+                    assert!(!schema["required"]
+                        .as_array()
+                        .expect("required fields")
+                        .contains(&serde_json::json!(field)));
+                }
+            }
         }
 
         let pull_schema = serde_json::to_value(schemars::schema_for!(PullReportArgs))
@@ -297,5 +329,38 @@ mod tests {
             file_schema["properties"]["path"]["pattern"],
             REPOSITORY_PATH_PATTERN
         );
+    }
+
+    #[test]
+    fn schema_patterns_match_runtime_whitespace_validation() {
+        let selector = fancy_regex::Regex::new(NON_WHITESPACE_PATTERN).expect("selector pattern");
+        let path = fancy_regex::Regex::new(REPOSITORY_PATH_PATTERN).expect("path pattern");
+        let whitespace = "\u{0009}\u{000A}\u{000B}\u{000C}\u{000D}\u{0020}\u{0085}\u{00A0}\u{1680}\u{2000}\u{2001}\u{2002}\u{2003}\u{2004}\u{2005}\u{2006}\u{2007}\u{2008}\u{2009}\u{200A}\u{2028}\u{2029}\u{202F}\u{205F}\u{3000}";
+        let mut values = vec![
+            String::new(),
+            whitespace.into(),
+            "owner".into(),
+            " feature/branch ".into(),
+            "\u{180E}".into(),
+            "\u{200B}".into(),
+            "\u{FEFF}".into(),
+            "src/λ.rs".into(),
+        ];
+        for character in whitespace.chars() {
+            values.push(character.to_string());
+            values.push(format!("{character}value{character}"));
+        }
+        for value in values {
+            assert_eq!(
+                selector.is_match(&value).expect("match selector"),
+                validate_nonempty("selector", &value).is_ok(),
+                "selector: {value:?}"
+            );
+            assert_eq!(
+                path.is_match(&value).expect("match path"),
+                validate_repository_relative_path(&value).is_ok(),
+                "path: {value:?}"
+            );
+        }
     }
 }

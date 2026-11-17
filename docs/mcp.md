@@ -15,6 +15,11 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 
 When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on the API query string.
 
+The tool schemas and runtime validation require `owner`, `repo`, and supplied
+`branch`/`sha` strings to contain at least one non-whitespace character, using
+Unicode whitespace rules. Optional selectors may be omitted or null; surrounding
+whitespace on nonempty values is not stripped.
+
 For `codecov_miss_files`, the complete totals report is fetched from Codecov before filtering. `limit` caps only the files returned to the MCP client; `0` remains uncapped and can produce a large result.
 
 File-report paths must be slash-delimited repository-relative paths. Absolute paths, empty path components, `.`/`..` components, backslashes, and control characters are rejected.
