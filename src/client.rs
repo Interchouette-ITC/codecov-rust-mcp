@@ -2,6 +2,7 @@
 
 use percent_encoding::{utf8_percent_encode, AsciiSet, NON_ALPHANUMERIC};
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION};
+use std::time::Duration;
 
 use crate::report::{
     miss_files_result, pull_coverage_report, CoverageReport, MissFilesResult, PullComparison,
@@ -14,13 +15,21 @@ const COMPONENT: &AsciiSet = &NON_ALPHANUMERIC.remove(b'-').remove(b'_').remove(
 /// Default Codecov API v2 base (no trailing slash).
 pub const DEFAULT_API_URL: &str = "https://api.codecov.io/api/v2";
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
+
 /// Errors from Codecov client construction or HTTP calls.
 #[derive(Debug)]
 pub enum ClientError {
     /// `CODECOV_TOKEN` missing or empty.
     MissingToken,
+    /// Token cannot be represented as an HTTP Authorization header value.
+    InvalidAuthHeader,
     /// Underlying HTTP transport failure.
     Http(reqwest::Error),
+    /// Codecov response body exceeds the configured size limit.
+    ResponseTooLarge { max_bytes: usize },
     /// Non-success HTTP status from Codecov.
     Api { status: u16, body: String },
     /// Response JSON could not be decoded.
@@ -35,7 +44,16 @@ impl std::fmt::Display for ClientError {
             Self::MissingToken => {
                 write!(f, "CODECOV_TOKEN is missing or empty")
             }
+            Self::InvalidAuthHeader => {
+                write!(f, "CODECOV_TOKEN contains invalid HTTP header characters")
+            }
             Self::Http(err) => write!(f, "HTTP error: {err}"),
+            Self::ResponseTooLarge { max_bytes } => {
+                write!(
+                    f,
+                    "Codecov response exceeds the {max_bytes}-byte size limit"
+                )
+            }
             Self::Api { status, body } => {
                 let snippet = truncate(body, 400);
                 write!(f, "Codecov API {status}: {snippet}")
@@ -51,7 +69,11 @@ impl std::error::Error for ClientError {
         match self {
             Self::Http(err) => Some(err),
             Self::Json(err) => Some(err),
-            Self::MissingToken | Self::Api { .. } | Self::Report(_) => None,
+            Self::MissingToken
+            | Self::InvalidAuthHeader
+            | Self::ResponseTooLarge { .. }
+            | Self::Api { .. }
+            | Self::Report(_) => None,
         }
     }
 }
@@ -101,28 +123,28 @@ impl std::fmt::Debug for CodecovClient {
 impl CodecovClient {
     /// Builds a client with an explicit token and API base URL.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics only if the default `reqwest::Client` cannot be constructed
-    /// (should not happen in normal environments).
-    #[must_use]
-    pub fn new(token: impl Into<String>, api_base: impl Into<String>) -> Self {
+    /// Returns [`ClientError::MissingToken`] for an empty token,
+    /// [`ClientError::InvalidAuthHeader`] for an invalid Authorization header,
+    /// or [`ClientError::Http`] if the HTTP client cannot be constructed.
+    pub fn new(token: impl Into<String>, api_base: impl Into<String>) -> Result<Self, ClientError> {
         let mut headers = HeaderMap::new();
         let token = token.into();
+        require_token(&token)?;
         let value = format!("bearer {token}");
-        headers.insert(
-            AUTHORIZATION,
-            HeaderValue::from_str(&value).unwrap_or_else(|_| HeaderValue::from_static("bearer")),
-        );
+        let value = HeaderValue::from_str(&value).map_err(|_| ClientError::InvalidAuthHeader)?;
+        headers.insert(AUTHORIZATION, value);
         let http = reqwest::Client::builder()
             .default_headers(headers)
-            .build()
-            .expect("reqwest client");
-        Self {
+            .connect_timeout(CONNECT_TIMEOUT)
+            .timeout(REQUEST_TIMEOUT)
+            .build()?;
+        Ok(Self {
             token,
             api_base: trim_trailing_slash(api_base.into()),
             http,
-        }
+        })
     }
 
     /// Builds a client from `CODECOV_TOKEN` and optional `CODECOV_API_URL`.
@@ -131,14 +153,14 @@ impl CodecovClient {
     ///
     /// # Errors
     ///
-    /// Returns [`ClientError::MissingToken`] when the token env var is unset or empty.
+    /// Returns a client construction error when the token is missing or invalid.
     pub fn from_env() -> Result<Self, ClientError> {
         crate::env_file::load_dotenv();
         let token = std::env::var("CODECOV_TOKEN").unwrap_or_default();
         require_token(&token)?;
         let api_base =
             std::env::var("CODECOV_API_URL").unwrap_or_else(|_| DEFAULT_API_URL.to_string());
-        Ok(Self::new(token, api_base))
+        Self::new(token, api_base)
     }
 
     /// API base URL without trailing slash.
@@ -214,6 +236,9 @@ impl CodecovClient {
 
     /// Files with misses, sorted descending, capped by `limit` (`0` = uncapped).
     ///
+    /// The complete totals report is fetched from Codecov before filtering;
+    /// `limit` controls only the number of files returned by this method.
+    ///
     /// # Errors
     ///
     /// Same as [`Self::totals`].
@@ -268,15 +293,40 @@ impl CodecovClient {
     ) -> Result<T, ClientError> {
         let response = self.http.get(url).send().await?;
         let status = response.status();
-        let body = response.text().await?;
+        let body = read_response_body(response, MAX_RESPONSE_SIZE).await?;
         if !status.is_success() {
             return Err(ClientError::Api {
                 status: status.as_u16(),
-                body,
+                body: String::from_utf8_lossy(&body).into_owned(),
             });
         }
-        Ok(serde_json::from_str(&body)?)
+        Ok(serde_json::from_slice(&body)?)
     }
+}
+
+async fn read_response_body(
+    mut response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<Vec<u8>, ClientError> {
+    if response
+        .content_length()
+        .is_some_and(|length| length > max_bytes as u64)
+    {
+        return Err(ClientError::ResponseTooLarge { max_bytes });
+    }
+
+    let mut body = Vec::new();
+    while let Some(chunk) = response.chunk().await? {
+        let length = body
+            .len()
+            .checked_add(chunk.len())
+            .ok_or(ClientError::ResponseTooLarge { max_bytes })?;
+        if length > max_bytes {
+            return Err(ClientError::ResponseTooLarge { max_bytes });
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
 }
 
 fn enc(s: &str) -> String {
@@ -431,7 +481,7 @@ mod tests {
 
     #[test]
     fn debug_hides_token() {
-        let client = CodecovClient::new("secret-token", DEFAULT_API_URL);
+        let client = CodecovClient::new("secret-token", DEFAULT_API_URL).expect("client");
         let debug = format!("{client:?}");
         assert!(debug.contains("has_token: true"));
         assert!(!debug.contains("secret-token"));
@@ -504,7 +554,7 @@ mod tests {
 
     #[test]
     fn new_stores_trimmed_base() {
-        let client = CodecovClient::new("tok", "https://api.codecov.io/api/v2/");
+        let client = CodecovClient::new("tok", "https://api.codecov.io/api/v2/").expect("client");
         assert_eq!(client.api_base(), DEFAULT_API_URL);
         assert_ne!(client.token, "");
     }
@@ -523,7 +573,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let report = client
             .totals("o", "r", Some("dev"), None)
             .await
@@ -554,7 +604,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let url = format!("{}/github/o/repos/r/totals/", client.api_base());
         match client.get_json::<serde_json::Value>(&url).await {
             Err(ClientError::Api { status, body }) => {
@@ -573,15 +623,36 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let url = format!("{}/github/o/repos/r/totals/", client.api_base());
         let json_err = client.get_json::<serde_json::Value>(&url).await;
         assert!(matches!(json_err, Err(ClientError::Json(_))));
     }
 
     #[tokio::test]
+    async fn read_response_body_rejects_oversized_body() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("12345"))
+            .mount(&server)
+            .await;
+
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
+        let response = client
+            .http
+            .get(server.uri())
+            .send()
+            .await
+            .expect("response");
+        assert!(matches!(
+            read_response_body(response, 4).await,
+            Err(ClientError::ResponseTooLarge { max_bytes: 4 })
+        ));
+    }
+
+    #[tokio::test]
     async fn get_json_http_transport_error() {
-        let client = CodecovClient::new("tok", "http://127.0.0.1:9");
+        let client = CodecovClient::new("tok", "http://127.0.0.1:9").expect("client");
         let err = client
             .get_json::<serde_json::Value>("http://127.0.0.1:9/github/o/repos/r/totals/")
             .await;
@@ -613,11 +684,20 @@ mod tests {
     }
 
     #[test]
-    fn new_falls_back_on_invalid_auth_header() {
+    fn new_rejects_invalid_auth_header() {
         // Newlines are invalid in HTTP header values.
-        let client = CodecovClient::new("bad\ntoken", "https://api.codecov.io/api/v2/");
-        assert_eq!(client.api_base(), DEFAULT_API_URL);
-        assert_ne!(client.token, "");
+        assert!(matches!(
+            CodecovClient::new("bad\ntoken", "https://api.codecov.io/api/v2/"),
+            Err(ClientError::InvalidAuthHeader)
+        ));
+    }
+
+    #[test]
+    fn new_rejects_empty_token() {
+        assert!(matches!(
+            CodecovClient::new(" ", DEFAULT_API_URL),
+            Err(ClientError::MissingToken)
+        ));
     }
 
     #[test]
@@ -640,7 +720,7 @@ mod tests {
             .respond_with(ResponseTemplate::new(500).set_body_string("nope"))
             .mount(&server)
             .await;
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let err = client.miss_files("o", "r", None, None, 10).await;
         assert!(matches!(err, Err(ClientError::Api { .. })));
     }

@@ -6,15 +6,22 @@ use std::sync::Arc;
 
 use rmcp::{
     handler::server::wrapper::Parameters,
-    model::{CallToolResult, ContentBlock, ServerCapabilities, ServerConfig},
+    model::{CallToolResult, ContentBlock, ErrorCode, ServerCapabilities, ServerConfig},
     tool, tool_handler, tool_router, ErrorData as McpError, ServerHandler,
 };
 
-use crate::client::CodecovClient;
+use crate::client::{ClientError, CodecovClient};
 use crate::tool_args::{FileReportArgs, MissFilesArgs, PullReportArgs, RepoArgs};
 
 /// Default Streamable HTTP bind address.
 pub const DEFAULT_HTTP_LISTEN: &str = "127.0.0.1:8690";
+
+const MCP_CONFIGURATION_ERROR: i32 = -32010;
+const MCP_AUTHENTICATION_ERROR: i32 = -32011;
+const MCP_PERMISSION_ERROR: i32 = -32012;
+const MCP_RATE_LIMIT_ERROR: i32 = -32013;
+const MCP_TRANSPORT_ERROR: i32 = -32014;
+const MCP_UPSTREAM_ERROR: i32 = -32015;
 
 /// MCP server handle exposing Codecov coverage tools.
 #[derive(Clone, Default)]
@@ -28,12 +35,30 @@ pub(crate) fn mcp_err(msg: impl Into<String>) -> McpError {
     McpError::invalid_params(msg.into(), None)
 }
 
+fn mcp_client_error(err: &ClientError) -> McpError {
+    let (code, category) = match err {
+        ClientError::MissingToken | ClientError::InvalidAuthHeader => {
+            (MCP_CONFIGURATION_ERROR, "configuration error")
+        }
+        ClientError::Api { status: 401, .. } => (MCP_AUTHENTICATION_ERROR, "authentication error"),
+        ClientError::Api { status: 403, .. } => (MCP_PERMISSION_ERROR, "permission error"),
+        ClientError::Api { status: 429, .. } => (MCP_RATE_LIMIT_ERROR, "rate limit"),
+        ClientError::Http(_) => (MCP_TRANSPORT_ERROR, "transport error"),
+        ClientError::ResponseTooLarge { .. }
+        | ClientError::Api { .. }
+        | ClientError::Json(_)
+        | ClientError::Report(_) => (MCP_UPSTREAM_ERROR, "Codecov API error"),
+    };
+    McpError::new(ErrorCode(code), format!("Codecov {category}: {err}"), None)
+}
+
 pub(crate) fn client_from_env() -> Result<CodecovClient, McpError> {
-    CodecovClient::from_env().map_err(|err| mcp_err(err.to_string()))
+    CodecovClient::from_env().map_err(|err| mcp_client_error(&err))
 }
 
 pub(crate) fn to_json_text<T: serde::Serialize>(value: &T) -> Result<String, McpError> {
-    serde_json::to_string_pretty(value).map_err(|err| mcp_err(err.to_string()))
+    serde_json::to_string_pretty(value)
+        .map_err(|err| McpError::internal_error(err.to_string(), None))
 }
 
 /// Fetches totals via an existing client and returns pretty JSON text.
@@ -41,6 +66,7 @@ pub(crate) async fn totals_with_client(
     client: &CodecovClient,
     args: RepoArgs,
 ) -> Result<CallToolResult, McpError> {
+    args.validate().map_err(mcp_err)?;
     let report = client
         .totals(
             &args.owner,
@@ -49,7 +75,7 @@ pub(crate) async fn totals_with_client(
             args.sha.as_deref(),
         )
         .await
-        .map_err(|err| mcp_err(err.to_string()))?;
+        .map_err(|err| mcp_client_error(&err))?;
     Ok(text_ok(to_json_text(&report.totals)?))
 }
 
@@ -58,6 +84,7 @@ pub(crate) async fn miss_files_with_client(
     client: &CodecovClient,
     args: MissFilesArgs,
 ) -> Result<CallToolResult, McpError> {
+    args.validate().map_err(mcp_err)?;
     let limit = usize::try_from(args.limit.unwrap_or(30)).unwrap_or(30);
     let result = client
         .miss_files(
@@ -68,7 +95,7 @@ pub(crate) async fn miss_files_with_client(
             limit,
         )
         .await
-        .map_err(|err| mcp_err(err.to_string()))?;
+        .map_err(|err| mcp_client_error(&err))?;
     Ok(text_ok(to_json_text(&result)?))
 }
 
@@ -77,6 +104,7 @@ pub(crate) async fn file_report_with_client(
     client: &CodecovClient,
     args: FileReportArgs,
 ) -> Result<CallToolResult, McpError> {
+    args.validate().map_err(mcp_err)?;
     let report = client
         .file_report(
             &args.owner,
@@ -86,7 +114,7 @@ pub(crate) async fn file_report_with_client(
             args.sha.as_deref(),
         )
         .await
-        .map_err(|err| mcp_err(err.to_string()))?;
+        .map_err(|err| mcp_client_error(&err))?;
     Ok(text_ok(to_json_text(&report)?))
 }
 
@@ -95,10 +123,11 @@ pub(crate) async fn pull_report_with_client(
     client: &CodecovClient,
     args: PullReportArgs,
 ) -> Result<CallToolResult, McpError> {
+    args.validate().map_err(mcp_err)?;
     let report = client
         .pull_report(&args.owner, &args.repo, args.pull_id)
         .await
-        .map_err(|err| mcp_err(err.to_string()))?;
+        .map_err(|err| mcp_client_error(&err))?;
     Ok(text_ok(to_json_text(&report)?))
 }
 
@@ -112,18 +141,20 @@ impl CodecovMcp {
         &self,
         Parameters(args): Parameters<RepoArgs>,
     ) -> Result<CallToolResult, McpError> {
+        args.validate().map_err(mcp_err)?;
         let client = client_from_env()?;
         totals_with_client(&client, args).await
     }
 
     /// Returns whole-commit totals plus files with missed lines, sorted by misses descending.
     #[tool(
-        description = "Codecov whole-commit totals plus files with misses, sorted by misses descending. This is not PR patch coverage. Limit defaults to 30; 0 is uncapped."
+        description = "Codecov whole-commit totals plus files with misses, sorted by misses descending. This is not PR patch coverage. The complete totals report is fetched before filtering; limit controls only the returned files, defaults to 30, and 0 is uncapped."
     )]
     async fn codecov_miss_files(
         &self,
         Parameters(args): Parameters<MissFilesArgs>,
     ) -> Result<CallToolResult, McpError> {
+        args.validate().map_err(mcp_err)?;
         let client = client_from_env()?;
         miss_files_with_client(&client, args).await
     }
@@ -136,6 +167,7 @@ impl CodecovMcp {
         &self,
         Parameters(args): Parameters<FileReportArgs>,
     ) -> Result<CallToolResult, McpError> {
+        args.validate().map_err(mcp_err)?;
         let client = client_from_env()?;
         file_report_with_client(&client, args).await
     }
@@ -148,6 +180,7 @@ impl CodecovMcp {
         &self,
         Parameters(args): Parameters<PullReportArgs>,
     ) -> Result<CallToolResult, McpError> {
+        args.validate().map_err(mcp_err)?;
         let client = client_from_env()?;
         pull_report_with_client(&client, args).await
     }
@@ -335,6 +368,60 @@ mod tests {
         assert!(ok.is_error.is_none() || ok.is_error == Some(false));
         let err = mcp_err("bad");
         assert!(err.to_string().contains("bad"));
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+    }
+
+    #[test]
+    fn client_errors_use_distinct_mcp_codes() {
+        let cases = [
+            (
+                ClientError::MissingToken,
+                MCP_CONFIGURATION_ERROR,
+                "configuration error",
+            ),
+            (
+                ClientError::InvalidAuthHeader,
+                MCP_CONFIGURATION_ERROR,
+                "configuration error",
+            ),
+            (
+                ClientError::Api {
+                    status: 401,
+                    body: String::new(),
+                },
+                MCP_AUTHENTICATION_ERROR,
+                "authentication error",
+            ),
+            (
+                ClientError::Api {
+                    status: 403,
+                    body: String::new(),
+                },
+                MCP_PERMISSION_ERROR,
+                "permission error",
+            ),
+            (
+                ClientError::Api {
+                    status: 429,
+                    body: String::new(),
+                },
+                MCP_RATE_LIMIT_ERROR,
+                "rate limit",
+            ),
+            (
+                ClientError::Api {
+                    status: 500,
+                    body: String::new(),
+                },
+                MCP_UPSTREAM_ERROR,
+                "Codecov API error",
+            ),
+        ];
+        for (error, code, category) in cases {
+            let mcp_error = mcp_client_error(&error);
+            assert_eq!(mcp_error.code, ErrorCode(code));
+            assert!(mcp_error.message.contains(category));
+        }
     }
 
     struct Boom;
@@ -350,7 +437,10 @@ mod tests {
         let text = to_json_text(&json!({"a": 1})).expect("json");
         assert!(text.contains('1'));
         let err = to_json_text(&Boom);
-        assert!(err.is_err());
+        assert_eq!(
+            err.expect_err("serialization error").code,
+            ErrorCode::INTERNAL_ERROR
+        );
     }
 
     #[test]
@@ -360,7 +450,10 @@ mod tests {
         let prev_url = std::env::var("CODECOV_API_URL").ok();
         std::env::set_var("CODECOV_TOKEN", "");
         std::env::remove_var("CODECOV_API_URL");
-        assert!(client_from_env().is_err());
+        assert_eq!(
+            client_from_env().expect_err("missing token").code,
+            ErrorCode(MCP_CONFIGURATION_ERROR)
+        );
         restore_env("CODECOV_TOKEN", prev_token);
         restore_env("CODECOV_API_URL", prev_url);
     }
@@ -393,7 +486,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let totals = totals_with_client(
             &client,
             RepoArgs {
@@ -443,7 +536,7 @@ mod tests {
             .respond_with(ResponseTemplate::new(503).set_body_string("down"))
             .mount(&server)
             .await;
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let args = RepoArgs {
             owner: "o".into(),
             repo: "r".into(),
@@ -488,6 +581,23 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn helpers_reject_invalid_arguments_as_invalid_params() {
+        let client = CodecovClient::new("tok", "http://127.0.0.1:9").expect("client");
+        let err = totals_with_client(
+            &client,
+            RepoArgs {
+                owner: "owner".into(),
+                repo: " ".into(),
+                branch: None,
+                sha: None,
+            },
+        )
+        .await
+        .expect_err("invalid repo arguments");
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+    }
+
+    #[tokio::test]
     async fn tools_fail_without_token() {
         let _guard = env_lock();
         let prev_token = std::env::var("CODECOV_TOKEN").ok();
@@ -496,6 +606,17 @@ mod tests {
         std::env::remove_var("CODECOV_API_URL");
 
         let mcp = CodecovMcp;
+        let invalid_args = mcp
+            .call_totals(RepoArgs {
+                owner: "owner".into(),
+                repo: String::new(),
+                branch: None,
+                sha: None,
+            })
+            .await
+            .expect_err("invalid arguments should fail before token lookup");
+        assert_eq!(invalid_args.code, ErrorCode::INVALID_PARAMS);
+
         assert!(mcp
             .call_totals(RepoArgs {
                 owner: "o".into(),
@@ -538,7 +659,7 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(sample_totals_json()))
             .mount(&server)
             .await;
-        let client = CodecovClient::new("tok", server.uri());
+        let client = CodecovClient::new("tok", server.uri()).expect("client");
         let ok = miss_files_with_client(
             &client,
             MissFilesArgs {

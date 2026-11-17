@@ -2,6 +2,52 @@
 
 use serde::{Deserialize, Serialize};
 
+/// Codecov's numeric coverage status for one source line.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LineCoverageStatus {
+    /// The line is covered.
+    Covered,
+    /// The line is missed.
+    Missed,
+    /// The line is partially covered.
+    Partial,
+    /// A status value not yet defined by this client.
+    Unknown(i64),
+}
+
+impl Serialize for LineCoverageStatus {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let value = match self {
+            Self::Covered => 0,
+            Self::Missed => 1,
+            Self::Partial => 2,
+            Self::Unknown(value) => *value,
+        };
+        serializer.serialize_i64(value)
+    }
+}
+
+impl<'de> Deserialize<'de> for LineCoverageStatus {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let value = i64::deserialize(deserializer)?;
+        Ok(match value {
+            0 => Self::Covered,
+            1 => Self::Missed,
+            2 => Self::Partial,
+            value => Self::Unknown(value),
+        })
+    }
+}
+
+/// One `[line_number, status]` pair from a Codecov file report.
+pub type LineCoverage = (u64, LineCoverageStatus);
+
 /// Aggregated coverage totals for a commit or file.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ReportTotals {
@@ -29,7 +75,7 @@ pub struct ReportFile {
     pub name: String,
     pub totals: ReportTotals,
     #[serde(default)]
-    pub line_coverage: Vec<serde_json::Value>,
+    pub line_coverage: Vec<LineCoverage>,
 }
 
 /// Full Codecov totals response (commit totals plus per-file breakdown).
@@ -302,6 +348,26 @@ pub fn miss_files_result(report: &CoverageReport, limit: usize) -> MissFilesResu
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn line_coverage_uses_numeric_typed_statuses() {
+        let lines: Vec<LineCoverage> =
+            serde_json::from_value(json!([[10, 0], [11, 1], [12, 2], [13, 7]]))
+                .expect("typed line coverage");
+        assert_eq!(
+            lines,
+            [
+                (10, LineCoverageStatus::Covered),
+                (11, LineCoverageStatus::Missed),
+                (12, LineCoverageStatus::Partial),
+                (13, LineCoverageStatus::Unknown(7)),
+            ]
+        );
+        assert_eq!(
+            serde_json::to_value(lines).expect("serialize line coverage"),
+            json!([[10, 0], [11, 1], [12, 2], [13, 7]])
+        );
+    }
 
     #[test]
     fn pull_comparison_accepts_null_totals() {

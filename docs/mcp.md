@@ -1,6 +1,6 @@
 # codecov-rust-mcp
 
-MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio**. Agents can inspect a pull request's patch coverage, coverage totals, missed files, and per-file line reports.
+MCP server for the [Codecov](https://docs.codecov.com/) API v2 over **stdio** or **Streamable HTTP**. Agents can inspect a pull request's patch coverage, coverage totals, missed files, and per-file line reports.
 
 Service is fixed to GitHub (`github` in the Codecov API path).
 
@@ -14,6 +14,8 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 | `codecov_file_report` | `owner`, `repo`, `path`, optional `branch`, optional `sha`            | Whole-file line coverage for one repository-relative path                                                                   |
 
 When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on the API query string.
+
+For `codecov_miss_files`, the complete totals report is fetched from Codecov before filtering. `limit` caps only the files returned to the MCP client; `0` remains uncapped and can produce a large result.
 
 ## Get PR coverage directly from Codecov
 
@@ -55,6 +57,14 @@ Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov
 | Not used     | OAuth, GitHub login, or other Codecov account flows          |
 
 Without `CODECOV_TOKEN`, tool calls fail with a clear error. The stdio process can still start (useful for transport smoke tests).
+
+## HTTP safeguards
+
+Codecov requests use a 10-second connection timeout and a 30-second total request timeout. Success and error response bodies are capped at 10 MiB; larger responses return an explicit error.
+
+## Tool errors
+
+Invalid arguments use JSON-RPC `-32602`. Codecov configuration, authentication, permission, rate-limit, transport, and other upstream failures use distinct server-defined error codes (`-32010` through `-32015`).
 
 ## Environment
 
