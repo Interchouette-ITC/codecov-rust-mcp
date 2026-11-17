@@ -36,11 +36,14 @@ Service is fixed to GitHub (`github` in the Codecov API path).
 ## Quick start
 
 ```bash
-cargo +stable install --path . --force
+cargo +stable install --locked codecov-rust-mcp
 mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-rust-mcp"
-cp .env.example "${XDG_CONFIG_HOME:-$HOME/.config}/codecov-rust-mcp/.env"
-# edit that file: set CODECOV_TOKEN (Access token, not upload token)
 ```
+
+Create `.env` in that directory and set `CODECOV_TOKEN` to a Codecov Access
+token (not an upload token), or provide it in the process environment.
+When installing from a checkout instead, run
+`cargo +stable install --locked --path . --force`.
 
 Point any MCP-capable agent or IDE at [`mcp.json.example`](../mcp.json.example): run `codecov-rust-mcp` on `PATH`. Token stays in user config `.env` (or process env), not in the MCP host JSON.
 

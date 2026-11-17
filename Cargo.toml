@@ -2,7 +2,7 @@
 name = "codecov-rust-mcp"
 version = "3.0.0"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.100"
 license = "Apache-2.0"
 description = "MCP server for the Codecov API (stdio or Streamable HTTP): PR patch coverage and missed changed lines"
 readme = "docs/README.md"
