@@ -785,7 +785,7 @@ mod tests {
 
     #[test]
     fn new_rejects_malformed_bearer_tokens() {
-        for token in ["bad\ntoken", "abc def", " abc", "abc ", "abc=def"] {
+        for token in ["bad\ntoken", "abc def", " abc", "abc ", "abc=def", "=abc"] {
             assert!(
                 matches!(
                     CodecovClient::new(token, DEFAULT_API_URL),
