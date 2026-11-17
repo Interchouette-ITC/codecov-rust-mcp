@@ -371,8 +371,8 @@ mod tests {
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
     }
 
-    #[test]
-    fn client_errors_use_distinct_mcp_codes() {
+    #[tokio::test]
+    async fn client_errors_use_distinct_mcp_codes() {
         let cases = [
             (
                 ClientError::MissingToken,
@@ -422,6 +422,15 @@ mod tests {
             assert_eq!(mcp_error.code, ErrorCode(code));
             assert!(mcp_error.message.contains(category));
         }
+
+        let transport = reqwest::Client::new()
+            .get("http://127.0.0.1:9/")
+            .send()
+            .await
+            .expect_err("connection should fail");
+        let error = mcp_client_error(&ClientError::Http(transport));
+        assert_eq!(error.code, ErrorCode(MCP_TRANSPORT_ERROR));
+        assert!(error.message.contains("transport error"));
     }
 
     struct Boom;

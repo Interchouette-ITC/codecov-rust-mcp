@@ -436,6 +436,13 @@ mod tests {
         assert!(missing.to_string().contains("CODECOV_TOKEN"));
         assert!(missing.source().is_none());
 
+        let oversized = ClientError::ResponseTooLarge { max_bytes: 10 };
+        assert_eq!(
+            oversized.to_string(),
+            "Codecov response exceeds the 10-byte size limit"
+        );
+        assert!(oversized.source().is_none());
+
         let api = ClientError::Api {
             status: 500,
             body: "short".into(),
@@ -633,7 +640,11 @@ mod tests {
     async fn read_response_body_rejects_oversized_body() {
         let server = MockServer::start().await;
         Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("12345"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("content-length", "5")
+                    .set_body_string("12345"),
+            )
             .mount(&server)
             .await;
 
@@ -644,6 +655,7 @@ mod tests {
             .send()
             .await
             .expect("response");
+        assert_eq!(response.content_length(), Some(5));
         assert!(matches!(
             read_response_body(response, 4).await,
             Err(ClientError::ResponseTooLarge { max_bytes: 4 })
