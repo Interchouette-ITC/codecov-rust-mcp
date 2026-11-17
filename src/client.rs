@@ -671,26 +671,45 @@ mod tests {
             .expect("bind test listener");
         let address = listener.local_addr().expect("listener address");
         let server = tokio::spawn(async move {
-            let (mut stream, _) = listener.accept().await.expect("accept request");
-            let mut request = Vec::new();
-            let mut buffer = [0; 1024];
-            loop {
-                let count = stream.read(&mut buffer).await.expect("read request");
-                if count == 0 {
-                    break;
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().await.expect("accept request");
+                let mut request = Vec::new();
+                let mut buffer = [0; 1024];
+                loop {
+                    let count = stream.read(&mut buffer).await.expect("read request");
+                    if count == 0 {
+                        break;
+                    }
+                    request.extend_from_slice(&buffer[..count]);
+                    if request.windows(4).any(|window| window == b"\r\n\r\n") {
+                        break;
+                    }
                 }
-                request.extend_from_slice(&buffer[..count]);
-                if request.windows(4).any(|window| window == b"\r\n\r\n") {
-                    break;
-                }
+                stream
+                    .write_all(
+                        b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n",
+                    )
+                    .await
+                    .expect("write response");
             }
-            stream
-                .write_all(
-                    b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nConnection: close\r\n\r\n5\r\n12345\r\n0\r\n\r\n",
-                )
-                .await
-                .expect("write response");
         });
+
+        let mut incomplete = tokio::net::TcpStream::connect(address)
+            .await
+            .expect("connect incomplete request");
+        incomplete
+            .write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\n")
+            .await
+            .expect("write incomplete request");
+        incomplete
+            .shutdown()
+            .await
+            .expect("close incomplete request");
+        let mut raw_response = Vec::new();
+        incomplete
+            .read_to_end(&mut raw_response)
+            .await
+            .expect("read raw response");
 
         let url = format!("http://{address}/");
         let client = CodecovClient::new("tok", &url).expect("client");
