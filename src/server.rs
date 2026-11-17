@@ -47,9 +47,9 @@ fn mcp_client_error(err: &ClientError) -> McpError {
         ClientError::ResponseTooLarge { .. }
         | ClientError::Api { .. }
         | ClientError::Json(_)
-        | ClientError::Report(_) => (MCP_UPSTREAM_ERROR, "Codecov API error"),
+        | ClientError::Report(_) => (MCP_UPSTREAM_ERROR, "upstream API error"),
     };
-    McpError::new(ErrorCode(code), format!("Codecov {category}: {err}"), None)
+    McpError::new(ErrorCode(code), format!("{category}: {err}"), None)
 }
 
 pub(crate) fn client_from_env() -> Result<CodecovClient, McpError> {
@@ -414,7 +414,7 @@ mod tests {
                     body: String::new(),
                 },
                 MCP_UPSTREAM_ERROR,
-                "Codecov API error",
+                "upstream API error",
             ),
         ];
         for (error, code, category) in cases {
@@ -603,6 +603,20 @@ mod tests {
         )
         .await
         .expect_err("invalid repo arguments");
+        assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
+
+        let err = file_report_with_client(
+            &client,
+            FileReportArgs {
+                owner: "owner".into(),
+                repo: "repo".into(),
+                path: "../outside".into(),
+                branch: None,
+                sha: None,
+            },
+        )
+        .await
+        .expect_err("non-repository path");
         assert_eq!(err.code, ErrorCode::INVALID_PARAMS);
     }
 

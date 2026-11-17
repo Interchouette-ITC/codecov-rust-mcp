@@ -24,7 +24,7 @@ const MAX_RESPONSE_SIZE: usize = 10 * 1024 * 1024;
 pub enum ClientError {
     /// `CODECOV_TOKEN` missing or empty.
     MissingToken,
-    /// Token cannot be represented as an HTTP Authorization header value.
+    /// Token does not match Bearer credential syntax or an HTTP header value.
     InvalidAuthHeader,
     /// Underlying HTTP transport failure.
     Http(reqwest::Error),
@@ -45,7 +45,10 @@ impl std::fmt::Display for ClientError {
                 write!(f, "CODECOV_TOKEN is missing or empty")
             }
             Self::InvalidAuthHeader => {
-                write!(f, "CODECOV_TOKEN contains invalid HTTP header characters")
+                write!(
+                    f,
+                    "CODECOV_TOKEN is not a valid Bearer credential or HTTP header value"
+                )
             }
             Self::Http(err) => write!(f, "HTTP error: {err}"),
             Self::ResponseTooLarge { max_bytes } => {
@@ -104,6 +107,28 @@ pub fn require_token(s: &str) -> Result<(), ClientError> {
 }
 
 /// Codecov API client (Bearer token + base URL).
+fn is_valid_bearer_token(token: &str) -> bool {
+    let mut has_token_character = false;
+    let mut has_padding = false;
+    for byte in token.bytes() {
+        if byte == b'=' {
+            if !has_token_character {
+                return false;
+            }
+            has_padding = true;
+        } else if !has_padding && is_bearer_token_character(byte) {
+            has_token_character = true;
+        } else {
+            return false;
+        }
+    }
+    has_token_character
+}
+
+const fn is_bearer_token_character(byte: u8) -> bool {
+    byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~' | b'+' | b'/')
+}
+
 #[derive(Clone)]
 pub struct CodecovClient {
     token: String,
@@ -126,12 +151,15 @@ impl CodecovClient {
     /// # Errors
     ///
     /// Returns [`ClientError::MissingToken`] for an empty token,
-    /// [`ClientError::InvalidAuthHeader`] for an invalid Authorization header,
+    /// [`ClientError::InvalidAuthHeader`] for an invalid Bearer token or Authorization header,
     /// or [`ClientError::Http`] if the HTTP client cannot be constructed.
     pub fn new(token: impl Into<String>, api_base: impl Into<String>) -> Result<Self, ClientError> {
         let mut headers = HeaderMap::new();
         let token = token.into();
         require_token(&token)?;
+        if !is_valid_bearer_token(&token) {
+            return Err(ClientError::InvalidAuthHeader);
+        }
         let value = format!("bearer {token}");
         let value = HeaderValue::from_str(&value).map_err(|_| ClientError::InvalidAuthHeader)?;
         headers.insert(AUTHORIZATION, value);
@@ -756,12 +784,21 @@ mod tests {
     }
 
     #[test]
-    fn new_rejects_invalid_auth_header() {
-        // Newlines are invalid in HTTP header values.
-        assert!(matches!(
-            CodecovClient::new("bad\ntoken", "https://api.codecov.io/api/v2/"),
-            Err(ClientError::InvalidAuthHeader)
-        ));
+    fn new_rejects_malformed_bearer_tokens() {
+        for token in ["bad\ntoken", "abc def", " abc", "abc ", "abc=def"] {
+            assert!(
+                matches!(
+                    CodecovClient::new(token, DEFAULT_API_URL),
+                    Err(ClientError::InvalidAuthHeader)
+                ),
+                "accepted invalid token {token:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn new_accepts_bearer_token_alphabet_and_padding() {
+        assert!(CodecovClient::new("Az09-._~+/==", DEFAULT_API_URL).is_ok());
     }
 
     #[test]

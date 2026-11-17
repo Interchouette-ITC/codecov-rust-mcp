@@ -85,7 +85,7 @@ pub struct FileReportArgs {
     /// Repository name.
     #[schemars(length(min = 1))]
     pub repo: String,
-    /// Repository-relative file path.
+    /// Slash-delimited repository-relative file path; dot segments and control characters are rejected.
     #[schemars(length(min = 1))]
     pub path: String,
     /// Branch head to query when `sha` is omitted.
@@ -111,7 +111,7 @@ impl FileReportArgs {
             self.branch.as_deref(),
             self.sha.as_deref(),
         )?;
-        validate_nonempty("path", &self.path)
+        validate_repository_relative_path(&self.path)
     }
 }
 
@@ -169,6 +169,30 @@ fn validate_nonempty(name: &str, value: &str) -> Result<(), String> {
     }
 }
 
+fn validate_repository_relative_path(path: &str) -> Result<(), String> {
+    validate_nonempty("path", path)?;
+    let bytes = path.as_bytes();
+    let drive_absolute = bytes.len() >= 3
+        && bytes[0].is_ascii_alphabetic()
+        && bytes[1] == b':'
+        && matches!(bytes[2], b'/' | b'\\');
+    let invalid = path.starts_with('/')
+        || path.starts_with('\\')
+        || path.contains('\\')
+        || drive_absolute
+        || path.chars().any(char::is_control)
+        || path
+            .split('/')
+            .any(|segment| segment.is_empty() || matches!(segment, "." | ".."));
+    if invalid {
+        return Err(
+            "path must be a slash-delimited repository-relative path without control characters or empty, `.` or `..` segments"
+                .into(),
+        );
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,6 +241,35 @@ mod tests {
             args.validate().unwrap_err(),
             "pull_id must be greater than zero"
         );
+    }
+
+    #[test]
+    fn validates_file_paths_without_normalizing_them() {
+        let args = |path: &str| FileReportArgs {
+            owner: "owner".into(),
+            repo: "repo".into(),
+            path: path.into(),
+            branch: None,
+            sha: None,
+        };
+        assert!(args("src/dir with spaces/λ.rs").validate().is_ok());
+
+        for path in [
+            "/absolute/path",
+            "C:/absolute/path",
+            "../outside",
+            "src/../outside",
+            "src/./file.rs",
+            "src//file.rs",
+            "src/file.rs/",
+            r"src\file.rs",
+            "src/\nfile.rs",
+        ] {
+            assert!(
+                args(path).validate().is_err(),
+                "accepted invalid path {path:?}"
+            );
+        }
     }
 
     #[test]

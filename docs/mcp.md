@@ -17,6 +17,8 @@ When both `branch` and `sha` are set, Codecov uses `sha` (commit) preference on 
 
 For `codecov_miss_files`, the complete totals report is fetched from Codecov before filtering. `limit` caps only the files returned to the MCP client; `0` remains uncapped and can produce a large result.
 
+File-report paths must be slash-delimited repository-relative paths. Absolute paths, empty path components, `.`/`..` components, backslashes, and control characters are rejected.
+
 ## Get PR coverage directly from Codecov
 
 When given a PR URL, extract its owner, repository, and PR number and call
@@ -49,6 +51,8 @@ substitute whole-file or whole-commit misses for PR patch misses.
 ## Auth
 
 Authentication is **bearer token only**. Put the token in `$HOME/.config/codecov-rust-mcp/.env` (or a checkout `.env`). The binary loads it via `dotenvy` (existing process env wins).
+
+`CODECOV_TOKEN` must use Bearer credential syntax: ASCII letters/digits and `-._~+/`, optionally followed by `=` padding. Whitespace and embedded padding are rejected.
 
 | Requirement  | Detail                                                       |
 | ------------ | ------------------------------------------------------------ |
